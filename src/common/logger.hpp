@@ -5,8 +5,6 @@
 #include <string>
 #include <sstream>
 #include <chrono>
-#include <iomanip>
-#include <memory>
 #include <mutex>
 
 namespace distributed_db

@@ -2,12 +2,8 @@
 #define __TYPES_HPP__
 
 #include <string>
-#include <vector>
-#include <memory>
-#include <unordered_map>
 #include <chrono>
 #include <optional>
-#include <variant>
 
 namespace distributed_db
 {
