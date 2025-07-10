@@ -16,7 +16,7 @@ find_package(Threads REQUIRED)
 
 # Add subdirectories
 add_subdirectory(src)
-# add_subdirectory(tests)
+add_subdirectory(tests)
 
 # Enable testing
-# enable_testing()
+enable_testing()
