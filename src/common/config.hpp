@@ -51,7 +51,7 @@ namespace distributed_db
         NodeId _node_id = "node_1";
 
         std::vector<std::string> _seeds;
-        size_t replication_factor = 3;
+        size_t _replication_factor = 3;
 
         std::chrono::milliseconds _election_timeout{5000};
         std::chrono::milliseconds _heartbeat_interval{1000};

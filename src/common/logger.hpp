@@ -6,6 +6,7 @@
 #include <sstream>
 #include <chrono>
 #include <mutex>
+#include <iomanip>
 
 namespace distributed_db
 {
@@ -88,12 +89,19 @@ namespace distributed_db
         }
 
         template <typename... Args>
-        std::string formatString(const std::string &format, Args &&...args)
+        std::string formatString(const std::string &format, Args &&...args) const
         {
-            std::ostringstream oss;
-            oss << format;
-            ((oss << " " << args), ...);
-            return oss.str();
+            if constexpr (sizeof...(args) == 0)
+            {
+                return format;
+            }
+            else
+            {
+                size_t size = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;
+                std::unique_ptr<char[]> buf(new char[size]);
+                std::snprintf(buf.get(), size, format.c_str(), args...);
+                return std::string(buf.get(), buf.get() + size - 1);
+            }
         }
     };
 

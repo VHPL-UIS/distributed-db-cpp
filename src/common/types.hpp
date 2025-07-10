@@ -4,12 +4,13 @@
 #include <string>
 #include <chrono>
 #include <optional>
+#include <stdexcept>
 
 namespace distributed_db
 {
     using NodeId = std::string;
     using Key = std::string;
-    using Valud = std::string;
+    using Value = std::string;
     using Term = uint64_t;
     using Index = uint64_t;
     using Timestamp = std::chrono::system_clock::time_point;
@@ -38,7 +39,7 @@ namespace distributed_db
         {
         }
 
-        bool ok() const { return _status = Status::OK; }
+        bool ok() const { return _status == Status::OK; }
         Status status() const { return _status; }
 
         const T &value() const
@@ -71,7 +72,7 @@ namespace distributed_db
         Port port;
         Timestamp last_heartbeat;
 
-        NodeInfo(NodeId id, IPAddress id, Port port) : id(std::move(id)), ip(std::move(ip)), port(port), last_heartbeat(std::chrono::system_clock::now()) {}
+        NodeInfo(NodeId id, IPAddress ip, Port port) : id(std::move(id)), ip(std::move(ip)), port(port), last_heartbeat(std::chrono::system_clock::now()) {}
     };
 
     enum class MessageType

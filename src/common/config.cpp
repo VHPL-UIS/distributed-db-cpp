@@ -1,5 +1,5 @@
-#include "config.h"
-#include "logger.h"
+#include "config.hpp"
+#include "logger.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -10,7 +10,7 @@ namespace distributed_db
         std::ifstream file(filename);
         if (!file.is_open())
         {
-            LOG_ERROR("Failed to open config file: {}", filename);
+            LOG_ERROR("Failed to open config file: %s", filename.c_str());
             return false;
         }
 
@@ -25,7 +25,7 @@ namespace distributed_db
             const auto pos = line.find('=');
             if (pos == std::string::npos)
             {
-                LOG_WARN("Invalid config line: {}", line);
+                LOG_WARN("Invalid config line: %s", line.c_str());
                 continue;
             }
 
@@ -80,17 +80,17 @@ namespace distributed_db
                 }
                 else
                 {
-                    LOG_WARN("Unknown config key: {}", key);
+                    LOG_WARN("Unknown config key: %s", key.c_str());
                 }
             }
             catch (const std::exception &e)
             {
-                LOG_ERROR("Error parsing config value for key '{}': {}", key, e.what());
+                LOG_ERROR("Error parsing config value for key '%s': %s", key.c_str(), e.what());
                 return false;
             }
         }
 
-        LOG_INFO("Configuration loaded from: {}", filename);
+        LOG_INFO("Configuration loaded from: %s", filename.c_str());
         return true;
     }
 
@@ -99,7 +99,7 @@ namespace distributed_db
         std::ofstream file(filename);
         if (!file.is_open())
         {
-            LOG_ERROR("Failed to create config file: {}", filename);
+            LOG_ERROR("Failed to create config file: %s", filename.c_str());
             return false;
         }
 
@@ -136,11 +136,11 @@ namespace distributed_db
 
         if (!file.good())
         {
-            LOG_ERROR("Error writing to config file: {}", filename);
+            LOG_ERROR("Error writing to config file: %s", filename.c_str());
             return false;
         }
 
-        LOG_INFO("Configuration saved to: {}", filename);
+        LOG_INFO("Configuration saved to: %s", filename.c_str());
         return true;
     }
 } // namespace distributed_db
