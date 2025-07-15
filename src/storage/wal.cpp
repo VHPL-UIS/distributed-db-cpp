@@ -236,4 +236,10 @@ namespace distributed_db
 
         return status;
     }
+
+    std::uint64_t WriteAheadLog::getCurrentSequenceNumber() const noexcept
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+        return _current_sequence_number;
+    }
 }
