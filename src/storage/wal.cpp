@@ -242,4 +242,10 @@ namespace distributed_db
         const std::lock_guard<std::mutex> lock(_mutex);
         return _current_sequence_number;
     }
+
+    std::size_t WriteAheadLog::getEntryCount() const
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+        return _entries_since_checkpoint;
+    }
 }
