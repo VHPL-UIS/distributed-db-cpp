@@ -78,4 +78,23 @@ namespace distributed_db
         const std::lock_guard<std::mutex> lock(_mutex);
         return createCheckpoint();
     }
+
+    Status WriteAheadLog::flush()
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+
+        if (!_wal_file || !_wal_file->is_open())
+        {
+            return Status::INTERNAL_ERROR;
+        }
+
+        _wal_file->flush();
+        if (_wal_file->fail())
+        {
+            LOG_ERROR("Failed to flush WAL file!");
+            return Status::INTERNAL_ERROR;
+        }
+
+        return Status::OK;
+    }
 }
