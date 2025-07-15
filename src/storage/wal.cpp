@@ -34,4 +34,26 @@ namespace distributed_db
             _wal_file->close();
         }
     }
+
+    Status WriteAheadLog::logPut(const Key &key, const Value &value)
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+
+        WalEntry entry(WalEntryType::PUT, key, value);
+        entry.sequence_number = getNextSequenceNumber();
+
+        const auto status = writeEntry(entry);
+        if (status == Status::OK)
+        {
+            ++_entries_since_checkpoint;
+
+            if (_entries_since_checkpoint >= MAX_ENTRIES_BEFORE_CHECKPOINT)
+            {
+                LOG_DEBUG("Auto-checkpointing after %zu entries!", _entries_since_checkpoint);
+                createCheckpoint();
+            }
+        }
+
+        return status;
+    }
 }
