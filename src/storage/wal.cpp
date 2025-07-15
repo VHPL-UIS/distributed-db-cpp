@@ -72,4 +72,10 @@ namespace distributed_db
 
         return status;
     }
+
+    Status WriteAheadLog::logCheckpoint()
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+        return createCheckpoint();
+    }
 }
