@@ -56,4 +56,20 @@ namespace distributed_db
 
         return status;
     }
+
+    Status WriteAheadLog::logDelete(const Key &key)
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+
+        WalEntry entry(WalEntryType::DELETE, key);
+        entry.sequence_number = getNextSequenceNumber();
+
+        const auto status = writeEntry(entry);
+        if (status == Status::OK)
+        {
+            ++_entries_since_checkpoint;
+        }
+
+        return status;
+    }
 }
