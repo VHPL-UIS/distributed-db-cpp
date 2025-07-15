@@ -143,4 +143,25 @@ namespace distributed_db
         LOG_DEBUG("Read %zu entries from WAL", entries.size());
         return Result<std::vector<WalEntry>>(std::move(entries));
     }
+
+    Result<std::vector<WalEntry>> WriteAheadLog::getEntriesSinceSequence(std::uint64_t sequence) const
+    {
+        auto all_entries_result = getAllEntries();
+        if (!all_entries_result.ok())
+        {
+            return all_entries_result;
+        }
+
+        std::vector<WalEntry> filtered_entries;
+        const auto &all_entries = all_entries_result.value();
+
+        std::copy_if(all_entries.begin(), all_entries.end(),
+                     std::back_inserter(filtered_entries),
+                     [sequence](const WalEntry &entry)
+                     {
+                         return entry.sequence_number > sequence;
+                     });
+
+        return Result<std::vector<WalEntry>>(std::move(filtered_entries));
+    }
 }
