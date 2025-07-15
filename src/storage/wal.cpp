@@ -221,4 +221,19 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Status WriteAheadLog::createCheckpoint()
+    {
+        WalEntry checkpoint_entry(WalEntryType::CHECKPOINT, "");
+        checkpoint_entry.sequence_number = getNextSequenceNumber();
+
+        const auto status = writeEntry(checkpoint_entry);
+        if (status == Status::OK)
+        {
+            _entries_since_checkpoint = 0;
+            LOG_DEBUG("Checkpoint created at sequence %ld", checkpoint_entry.sequence_number);
+        }
+
+        return status;
+    }
 }
