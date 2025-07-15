@@ -253,4 +253,63 @@ namespace distributed_db
     {
         return _wal_file_path;
     }
+
+    bool WriteAheadLog::initializeWalFile()
+    {
+        if (std::filesystem::exist(_wal_file_path))
+        {
+            const auto validation_status = validateWalFile();
+            if (validation_status != Status::OK)
+            {
+                LOG_WARN("Existing WAL file is corrupted, creating new one!");
+                std::filesystem::remove(_wal_file_path);
+            }
+            else
+            {
+                auto entries_result = getAllEntries();
+                if (entries_result.ok() && !entries_result.value().empty())
+                {
+                    const auto &entries = entries_result.value();
+                    _current_sequence_number = entries.back().sequence_number;
+
+                    auto checkpoint_it = std::find_if(entries.rbegin(), entries.rend(),
+                                                      [](const WalEntry &entry)
+                                                      {
+                                                          return entry.type == WalEntryType::CHECKPOINT;
+                                                      });
+
+                    if (checkpoint_it != entries.rend())
+                    {
+                        _entries_since_checkpoint = std::distance(entries.rbegin(), checkpoint_it);
+                    }
+                    else
+                    {
+                        _entries_since_checkpoint = entries.size();
+                    }
+
+                    LOG_INFO("Recovered WAL with %lu entries, sequence number: %lu", entries.size(), _current_sequence_number);
+                }
+            }
+        }
+
+        _wal_file = std::make_unique<std::ofstream>(_wal_file_path, std::ios::binary | std::ios::app);
+
+        if (!_wal_file->is_open())
+        {
+            LOG_ERROR("Failed to open WAL file: %s", _wal_file_path.string().c_str());
+            return false;
+        }
+
+        if (std::filesystem::file_size(_wal_file_path) == 0)
+        {
+            const auto status = writeHeader();
+            if (status != Status::OK)
+            {
+                LOG_ERROR("Failed to write WAL header!");
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
