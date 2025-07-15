@@ -97,4 +97,50 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Result<std::vector<WalEntry>> WriteAheadLog::getAllEntries() const
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+
+        std::ifstream file(_wal_file_path, std::ios::binary);
+        if (!file.is_open())
+        {
+            LOG_ERROR("Failed to open WAL file for reading: %s", _wal_file_path.string().c_str());
+            return Result<std::vector<WalEntry>>(Status::INTERNAL_ERROR);
+        }
+
+        std::uint32_t magic;
+        std::uint8_t version;
+        file.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        file.read(reinterpret_cast<char *>(&version), sizeof(version));
+
+        if (magic != WAL_MAGIC_NUMBER || version != WAL_VERSION)
+        {
+            LOG_ERROR("Invalid WAL file header!");
+            return Result<std::vector<WalEntry>>(Status::INTERNAL_ERROR);
+        }
+
+        std::vector<WalEntry> entries;
+
+        while (file.good() && !file.eof())
+        {
+            auto entry_result = readNextEntry(file);
+            if (entry_result.ok())
+            {
+                entries.push_back(entry_result.value());
+            }
+            else if (file.eof())
+            {
+                break;
+            }
+            else
+            {
+                LOG_WARN("Failed to read WAL entry, stopping recovery!");
+                break;
+            }
+        }
+
+        LOG_DEBUG("Read %zu entries from WAL", entries.size());
+        return Result<std::vector<WalEntry>>(std::move(entries));
+    }
 }
