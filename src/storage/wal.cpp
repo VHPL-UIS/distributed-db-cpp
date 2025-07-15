@@ -164,4 +164,61 @@ namespace distributed_db
 
         return Result<std::vector<WalEntry>>(std::move(filtered_entries));
     }
+
+    Status WriteAheadLog::truncateUpTo(std::uint64_t sequence_number)
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+
+        auto all_entries_result = getAllEntries();
+        if (!all_entries_result.ok())
+        {
+            return all_entries_result.status();
+        }
+
+        const auto &all_entries = all_entries_result.value();
+
+        std::vector<WalEntry> entries_to_keep;
+        std::copy_if(all_entries.begin(), all_entries.end(),
+                     std::back_inserter(entries_to_keep),
+                     [sequence_number](const WalEntry &entry)
+                     {
+                         return entry.sequence_number > sequence_number;
+                     });
+
+        if (_wal_file && _wal_file->is_open())
+        {
+            _wal_file->close();
+        }
+
+        _wal_file = std::make_unique<std::ofstream>(_wal_file_path,
+                                                    std::ios::binary | std::ios::trunc);
+
+        if (!_wal_file->is_open())
+        {
+            LOG_ERROR("Failed to reopen WAL file for truncation!");
+            return Status::INTERNAL_ERROR;
+        }
+
+        auto status = writeHeader();
+        if (status != Status::OK)
+        {
+            return status;
+        }
+
+        for (const auto &entry : entries_to_keep)
+        {
+            status = writeEntry(entry);
+            if (status != Status::OK)
+            {
+                LOG_ERROR("Failed to write entry during truncation!");
+                return status;
+            }
+        }
+
+        _entries_since_checkpoint = entries_to_keep.size();
+
+        LOG_INFO("WAL truncated, keeping %zu entries after sequence %lu!", entries_to_keep.size(), sequence_number);
+
+        return Status::OK;
+    }
 }
