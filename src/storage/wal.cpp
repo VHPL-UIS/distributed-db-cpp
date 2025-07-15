@@ -248,4 +248,9 @@ namespace distributed_db
         const std::lock_guard<std::mutex> lock(_mutex);
         return _entries_since_checkpoint;
     }
+
+    const std::filesystem::path &WriteAheadLog::getWalPath() const noexcept
+    {
+        return _wal_file_path;
+    }
 }
