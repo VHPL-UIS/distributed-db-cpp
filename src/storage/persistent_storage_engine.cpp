@@ -178,4 +178,21 @@ namespace distributed_db
 
         LOG_DEBUG("Cleared all data");
     }
+
+    Status PersistentStorageEngine::flush()
+    {
+        const auto wal_status = _wal->flush();
+        if (wal_status != Status::OK)
+        {
+            return wal_status;
+        }
+
+        const auto current_wal_entries = _wal->getEntryCount();
+        if (current_wal_entries > 100)
+        {
+            return checkpoint();
+        }
+
+        return Status::OK;
+    }
 } // namespace distributed_db
