@@ -410,4 +410,78 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Status WriteAheadLog::serializeEntry(const WalEntry &entry, std::vector<std::uint8_t> &buffer) const
+    {
+        buffer.clear();
+
+        buffer.push_back(static_cast<std::uint8_t>(entry.type));
+
+        const auto seq_bytes = reinterpret_cast<const std::uint8_t *>(&entry.sequence_number);
+        buffer.insert(buffer.end(), seq_bytes, seq_bytes + sizeof(entry.sequence_number));
+
+        const auto timestamp_value = entry.timestamp.time_since_epoch().count();
+        const auto timestamp_bytes = reinterpret_cast<const std::uint8_t *>(&timestamp_value);
+        buffer.insert(buffer.end(), timestamp_bytes, timestamp_bytes + sizeof(timestamp_value));
+
+        const auto key_size = static_cast<std::uint32_t>(entry.key.size());
+        const auto key_size_bytes = reinterpret_cast<const std::uint8_t *>(&key_size);
+        buffer.insert(buffer.end(), key_size_bytes, key_size_bytes + sizeof(key_size));
+        buffer.insert(buffer.end(), entry.key.begin(), entry.key.end());
+
+        const auto value_size = static_cast<std::uint32_t>(entry.value.size());
+        const auto value_size_bytes = reinterpret_cast<const std::uint8_t *>(&value_size);
+        buffer.insert(buffer.end(), value_size_bytes, value_size_bytes + sizeof(value_size));
+        buffer.insert(buffer.end(), entry.value.begin(), entry.value.end());
+
+        return Status::OK;
+    }
+
+    Result<WalEntry> WriteAheadLog::deserializeEntry(const std::vector<std::uint8_t> &buffer) const
+    {
+        if (buffer.size() < sizeof(std::uint8_t) + sizeof(std::uint64_t) +
+                                sizeof(std::int64_t) + 2 * sizeof(std::uint32_t))
+        {
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        std::size_t offset = 0;
+        WalEntry entry;
+
+        entry.type = static_cast<WalEntryType>(buffer[offset]);
+        offset += sizeof(std::uint8_t);
+
+        std::memcpy(&entry.sequence_number, buffer.data() + offset, sizeof(entry.sequence_number));
+        offset += sizeof(entry.sequence_number);
+
+        std::int64_t timestamp_value;
+        std::memcpy(&timestamp_value, buffer.data() + offset, sizeof(timestamp_value));
+        entry.timestamp = Timestamp(std::chrono::system_clock::duration(timestamp_value));
+        offset += sizeof(timestamp_value);
+
+        std::uint32_t key_size;
+        std::memcpy(&key_size, buffer.data() + offset, sizeof(key_size));
+        offset += sizeof(key_size);
+
+        if (offset + key_size > buffer.size())
+        {
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        entry.key = std::string(buffer.begin() + offset, buffer.begin() + offset + key_size);
+        offset += key_size;
+
+        std::uint32_t value_size;
+        std::memcpy(&value_size, buffer.data() + offset, sizeof(value_size));
+        offset += sizeof(value_size);
+
+        if (offset + value_size > buffer.size())
+        {
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        entry.value = std::string(buffer.begin() + offset, buffer.begin() + offset + value_size);
+
+        return Result<WalEntry>(std::move(entry));
+    }
 }
