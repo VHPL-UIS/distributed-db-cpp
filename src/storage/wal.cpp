@@ -489,4 +489,14 @@ namespace distributed_db
     {
         return ++_current_sequence_number;
     }
+
+    std::filesystem::path WriteAheadLog::generateWalFileName() const
+    {
+        const auto now = std::chrono::system_clock::now();
+        const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                                   now.time_since_epoch())
+                                   .count();
+
+        return _wal_directory / ("wal_" + std::to_string(timestamp) + ".log");
+    }
 }
