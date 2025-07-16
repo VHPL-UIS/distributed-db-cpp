@@ -484,4 +484,9 @@ namespace distributed_db
 
         return Result<WalEntry>(std::move(entry));
     }
+
+    std::uint64_t WriteAheadLog::getNextSequenceNumber() noexcept
+    {
+        return ++_current_sequence_number;
+    }
 }
