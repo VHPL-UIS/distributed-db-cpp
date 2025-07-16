@@ -389,4 +389,25 @@ namespace distributed_db
 
         return deserializeEntry(buffer);
     }
+
+    Status WriteAheadLog::validateWalFile() const
+    {
+        std::ifstream file(_wal_file_path, std::ios::binary);
+        if (!file.is_open())
+        {
+            return Status::INTERNAL_ERROR;
+        }
+
+        std::uint32_t magic;
+        std::uint8_t version;
+        file.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        file.read(reinterpret_cast<char *>(&version), sizeof(version));
+
+        if (file.fail() || magic != WAL_MAGIC_NUMBER || version != WAL_VERSION)
+        {
+            return Status::INTERNAL_ERROR;
+        }
+
+        return Status::OK;
+    }
 }
