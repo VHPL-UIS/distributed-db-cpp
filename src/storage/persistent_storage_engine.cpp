@@ -503,4 +503,31 @@ namespace distributed_db
             break;
         }
     }
+
+    Status PersistentStorageEngine::validateSnapshot() const
+    {
+        if (!snapshotExists())
+        {
+            return Status::NOT_FOUND;
+        }
+
+        return isValidSnapshotFile(_snapshot_file_path) ? Status::OK : Status::INTERNAL_ERROR;
+    }
+
+    bool PersistentStorageEngine::isValidSnapshotFile(const std::filesystem::path &path) const
+    {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open())
+        {
+            return false;
+        }
+
+        std::uint32_t magic;
+        std::uint8_t version;
+
+        file.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        file.read(reinterpret_cast<char *>(&version), sizeof(version));
+
+        return !file.fail() && magic == SNAPSHOT_MAGIC_NUMBER && version == SNAPSHOT_VERSION;
+    }
 } // namespace distributed_db
