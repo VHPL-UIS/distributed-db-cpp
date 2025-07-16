@@ -1,5 +1,7 @@
 #include "wal.hpp"
 #include "../common/logger.hpp"
+#include "algorithm"
+#include <cstring>
 
 namespace distributed_db
 {
@@ -27,7 +29,7 @@ namespace distributed_db
 
     WriteAheadLog::~WriteAheadLog()
     {
-        const std::loc_guard<std::mutex> lock(_mutex);
+        const std::lock_guard<std::mutex> lock(_mutex);
         if (_wal_file && _wal_file->is_open())
         {
             _wal_file->flush();
@@ -50,7 +52,11 @@ namespace distributed_db
             if (_entries_since_checkpoint >= MAX_ENTRIES_BEFORE_CHECKPOINT)
             {
                 LOG_DEBUG("Auto-checkpointing after %zu entries!", _entries_since_checkpoint);
-                createCheckpoint();
+                const auto checkpoint_status = createCheckpoint();
+                if (checkpoint_status != Status::OK)
+                {
+                    LOG_WARN("Auto-checkpoint failed, but continuing with operation");
+                }
             }
         }
 
@@ -109,34 +115,50 @@ namespace distributed_db
             return Result<std::vector<WalEntry>>(Status::INTERNAL_ERROR);
         }
 
+        // Skip header
         std::uint32_t magic;
         std::uint8_t version;
         file.read(reinterpret_cast<char *>(&magic), sizeof(magic));
         file.read(reinterpret_cast<char *>(&version), sizeof(version));
 
+        if (file.fail())
+        {
+            LOG_WARN("WAL file appears to be empty or corrupted");
+            return Result<std::vector<WalEntry>>(Status::NOT_FOUND);
+        }
+
         if (magic != WAL_MAGIC_NUMBER || version != WAL_VERSION)
         {
-            LOG_ERROR("Invalid WAL file header!");
+            LOG_ERROR("Invalid WAL file header");
             return Result<std::vector<WalEntry>>(Status::INTERNAL_ERROR);
         }
 
         std::vector<WalEntry> entries;
 
-        while (file.good() && !file.eof())
+        while (file.good())
         {
+            // Check if we're at the end before trying to read
+            if (file.peek() == EOF)
+            {
+                break;
+            }
+
             auto entry_result = readNextEntry(file);
             if (entry_result.ok())
             {
                 entries.push_back(entry_result.value());
             }
-            else if (file.eof())
-            {
-                break;
-            }
             else
             {
-                LOG_WARN("Failed to read WAL entry, stopping recovery!");
-                break;
+                if (file.eof())
+                {
+                    break;
+                }
+                else
+                {
+                    LOG_WARN("Failed to read WAL entry, stopping recovery");
+                    break;
+                }
             }
         }
 
@@ -167,8 +189,6 @@ namespace distributed_db
 
     Status WriteAheadLog::truncateUpTo(std::uint64_t sequence_number)
     {
-        const std::lock_guard<std::mutex> lock(_mutex);
-
         auto all_entries_result = getAllEntries();
         if (!all_entries_result.ok())
         {
@@ -184,6 +204,8 @@ namespace distributed_db
                      {
                          return entry.sequence_number > sequence_number;
                      });
+
+        const std::lock_guard<std::mutex> lock(_mutex);
 
         if (_wal_file && _wal_file->is_open())
         {
@@ -256,7 +278,7 @@ namespace distributed_db
 
     bool WriteAheadLog::initializeWalFile()
     {
-        if (std::filesystem::exist(_wal_file_path))
+        if (std::filesystem::exists(_wal_file_path))
         {
             const auto validation_status = validateWalFile();
             if (validation_status != Status::OK)
@@ -329,7 +351,7 @@ namespace distributed_db
 
         const auto entry_size = static_cast<std::uint32_t>(buffer.size());
         _wal_file->write(reinterpret_cast<const char *>(&entry_size), sizeof(entry_size));
-        _wal_fiel->write(reinterpret_cast<const char *>(buffer.data()), buffer.size());
+        _wal_file->write(reinterpret_cast<const char *>(buffer.data()), buffer.size());
 
         if (_wal_file->fail())
         {
@@ -367,7 +389,12 @@ namespace distributed_db
         std::uint32_t entry_size;
         file.read(reinterpret_cast<char *>(&entry_size), sizeof(entry_size));
 
-        if (file.eof() || file.fail())
+        if (file.eof())
+        {
+            return Result<WalEntry>(Status::NOT_FOUND); // End of file, not an error
+        }
+
+        if (file.fail())
         {
             return Result<WalEntry>(Status::INTERNAL_ERROR);
         }

@@ -3,6 +3,8 @@ add_executable(distributed_db
     main.cpp
     common/config.cpp
     storage/storage_engine.cpp
+    storage/wal.cpp
+    storage/persistent_storage_engine.cpp
 )
 
 # Link libraries

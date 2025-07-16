@@ -6,6 +6,7 @@
 #include <mutex>
 #include <memory>
 #include <fstream>
+#include <vector>
 
 namespace distributed_db
 {
@@ -79,7 +80,7 @@ namespace distributed_db
 
         [[nodiscard]] std::uint64_t getNextSequenceNumber() noexcept;
         [[nodiscard]] std::filesystem::path generateWalFileName() const;
-    }
+    };
 } // namespace distributed_db
 
 #endif // __WAL_HPP__

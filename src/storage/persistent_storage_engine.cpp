@@ -9,7 +9,7 @@ namespace distributed_db
     {
         if (!initializeDataDirectory())
         {
-            throw std::runtime_error("Failed to initialize data directory: " + _data_dirctory.string());
+            throw std::runtime_error("Failed to initialize data directory: " + _data_directory.string());
         }
 
         _snapshot_file_path = _data_directory / SNAPSHOT_FILENAME;
@@ -167,14 +167,22 @@ namespace distributed_db
 
     void PersistentStorageEngine::clear()
     {
-        _wal->logCheckpoint();
+        const auto checkpoint_status = _wal->logCheckpoint();
+        if (checkpoint_status != Status::OK)
+        {
+            LOG_WARN("Failed to log checkpoint before clear, but continuing");
+        }
 
         {
             const std::unique_lock lock(_mutex);
             _data.clear();
         }
 
-        saveSnapshot();
+        const auto snapshot_status = saveSnapshot();
+        if (snapshot_status != Status::OK)
+        {
+            LOG_WARN("Failed to save snapshot after clear");
+        }
 
         LOG_DEBUG("Cleared all data");
     }
@@ -207,6 +215,8 @@ namespace distributed_db
             return wal_status;
         }
 
+        LOG_DEBUG("Checkpoint logged to WAL, saving snapshot...");
+
         const auto snapshot_status = saveSnapshot();
         if (snapshot_status != Status::OK)
         {
@@ -214,13 +224,23 @@ namespace distributed_db
             return snapshot_status;
         }
 
+        LOG_DEBUG("Snapshot saved, updating sequence number...");
+
         _last_checkpoint_sequence = _wal->getCurrentSequenceNumber();
+
+        LOG_DEBUG("About to truncate WAL...");
 
         const auto truncate_before = _last_checkpoint_sequence - 10; // Keep last 10 entries
         if (truncate_before > 0)
         {
-            _wal->truncateUpTo(truncate_before);
+            const auto truncate_status = _wal->truncateUpTo(truncate_before);
+            if (truncate_status != Status::OK)
+            {
+                LOG_WARN("Failed to truncate WAL, but checkpoint completed successfully");
+            }
         }
+
+        LOG_DEBUG("WAL truncation completed");
 
         LOG_INFO("Checkpoint completed at sequence %lu", _last_checkpoint_sequence);
         return Status::OK;
@@ -354,6 +374,11 @@ namespace distributed_db
         auto entries_result = _wal->getEntriesSinceSequence(_last_checkpoint_sequence);
         if (!entries_result.ok())
         {
+            if (entries_result.status() == Status::NOT_FOUND || entries_result.status() == Status::INTERNAL_ERROR)
+            {
+                LOG_INFO("No WAL entries found for replay (this is normal for a fresh database)");
+                return Status::OK;
+            }
             LOG_ERROR("Failed to read WAL entries for replay");
             return entries_result.status();
         }
