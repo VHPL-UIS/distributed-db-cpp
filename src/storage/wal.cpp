@@ -342,4 +342,23 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Status WriteAheadLog::writeHeader()
+    {
+        if (!_wal_file || !_wal_file->is_open())
+        {
+            return Status::INTERNAL_ERROR;
+        }
+
+        _wal_file->write(reinterpret_cast<const char *>(&WAL_MAGIC_NUMBER), sizeof(WAL_MAGIC_NUMBER));
+        _wal_file->write(reinterpret_cast<const char *>(&WAL_VERSION), sizeof(WAL_VERSION));
+
+        if (_wal_file->fail())
+        {
+            LOG_ERROR("Failed to write WAL header");
+            return Status::INTERNAL_ERROR;
+        }
+
+        return Status::OK;
+    }
 }
