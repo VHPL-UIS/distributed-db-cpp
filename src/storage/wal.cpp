@@ -361,4 +361,32 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Result<WalEntry> WriteAheadLog::readNextEntry(std::ifstream &file) const
+    {
+        std::uint32_t entry_size;
+        file.read(reinterpret_cast<char *>(&entry_size), sizeof(entry_size));
+
+        if (file.eof() || file.fail())
+        {
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        if (entry_size == 0 || entry_size > 1024 * 1024)
+        {
+            LOG_ERROR("Invalid WAL entry size: %u", entry_size);
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        std::vector<std::uint8_t> buffer(entry_size);
+        file.read(reinterpret_cast<char *>(buffer.data()), entry_size);
+
+        if (file.fail())
+        {
+            LOG_ERROR("Failed to read WAL entry data");
+            return Result<WalEntry>(Status::INTERNAL_ERROR);
+        }
+
+        return deserializeEntry(buffer);
+    }
 }
