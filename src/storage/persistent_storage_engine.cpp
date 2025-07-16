@@ -348,4 +348,28 @@ namespace distributed_db
         LOG_INFO("Saved snapshot with %zu keys", _data.size());
         return Status::OK;
     }
+
+    Status PersistentStorageEngine::replayWalEntries()
+    {
+        auto entries_result = _wal->getEntriesSinceSequence(_last_checkpoint_sequence);
+        if (!entries_result.ok())
+        {
+            LOG_ERROR("Failed to read WAL entries for replay");
+            return entries_result.status();
+        }
+
+        const auto &entries = entries_result.value();
+        LOG_INFO("Replaying %zu WAL entries since sequence %lu", entries.size(), _last_checkpoint_sequence);
+
+        {
+            const std::unique_lock lock(_mutex);
+            for (const auto &entry : entries)
+            {
+                applyWalEntry(entry);
+            }
+        }
+
+        LOG_INFO("WAL replay completed");
+        return Status::OK;
+    }
 } // namespace distributed_db
