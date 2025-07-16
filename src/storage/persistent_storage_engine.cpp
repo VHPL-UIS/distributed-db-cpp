@@ -311,4 +311,41 @@ namespace distributed_db
         LOG_INFO("Loaded snapshot with %zu keys", _data.size());
         return Status::OK;
     }
+
+    Status PersistentStorageEngine::saveSnapshot()
+    {
+        const auto temp_snapshot_path = _snapshot_file_path.string() + ".tmp";
+
+        std::ofstream file(temp_snapshot_path, std::ios::binary);
+        if (!file.is_open())
+        {
+            LOG_ERROR("Failed to create temporary snapshot file: %s", temp_snapshot_path.c_str());
+            return Status::INTERNAL_ERROR;
+        }
+
+        {
+            const std::shared_lock lock(_mutex);
+            const auto status = serializeSnapshot(file);
+            if (status != Status::OK)
+            {
+                LOG_ERROR("Failed to serialize snapshot");
+                std::filesystem::remove(temp_snapshot_path);
+                return status;
+            }
+        }
+
+        file.close();
+
+        std::error_code ec;
+        std::filesystem::rename(temp_snapshot_path, _snapshot_file_path, ec);
+        if (ec)
+        {
+            LOG_ERROR("Failed to replace snapshot file: %s", ec.message().c_str());
+            std::filesystem::remove(temp_snapshot_path);
+            return Status::INTERNAL_ERROR;
+        }
+
+        LOG_INFO("Saved snapshot with %zu keys", _data.size());
+        return Status::OK;
+    }
 } // namespace distributed_db
