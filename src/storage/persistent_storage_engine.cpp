@@ -195,4 +195,34 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    Status PersistentStorageEngine::checkpoint()
+    {
+        LOG_INFO("Creating checkpoint...");
+
+        const auto wal_status = _wal->logCheckpoint();
+        if (wal_status != Status::OK)
+        {
+            LOG_ERROR("Failed to log checkpoint to WAL");
+            return wal_status;
+        }
+
+        const auto snapshot_status = saveSnapshot();
+        if (snapshot_status != Status::OK)
+        {
+            LOG_ERROR("Failed to save snapshot during checkpoint");
+            return snapshot_status;
+        }
+
+        _last_checkpoint_sequence = _wal->getCurrentSequenceNumber();
+
+        const auto truncate_before = _last_checkpoint_sequence - 10; // Keep last 10 entries
+        if (truncate_before > 0)
+        {
+            _wal->truncateUpTo(truncate_before);
+        }
+
+        LOG_INFO("Checkpoint completed at sequence %lu", _last_checkpoint_sequence);
+        return Status::OK;
+    }
 } // namespace distributed_db
