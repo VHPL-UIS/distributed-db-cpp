@@ -312,4 +312,34 @@ namespace distributed_db
 
         return true;
     }
+
+    Status WriteAheadLog::writeEntry(const WalEntry &entry)
+    {
+        if (!_wal_file || !_wal_file->is_open())
+        {
+            return Status::INTERNAL_ERROR;
+        }
+
+        std::vector<std::uint8_t> buffer;
+        const auto status = serializeEntry(entry, buffer);
+        if (status != Status::OK)
+        {
+            return status;
+        }
+
+        const auto entry_size = static_cast<std::uint32_t>(buffer.size());
+        _wal_file->write(reinterpret_cast<const char *>(&entry_size), sizeof(entry_size));
+        _wal_fiel->write(reinterpret_cast<const char *>(buffer.data()), buffer.size());
+
+        if (_wal_file->fail())
+        {
+            LOG_ERROR("Failed to write WAL entry");
+            return Status::INTERNAL_ERROR;
+        }
+
+        LOG_DEBUG("WAL entry written: type=%d, key=%s, sequence=%lu",
+                  static_cast<int>(entry.type), entry.key.c_str(), entry.sequence_number);
+
+        return Status::OK;
+    }
 }
