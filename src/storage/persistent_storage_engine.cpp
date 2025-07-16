@@ -469,4 +469,38 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    bool PersistentStorageEngine::snapshotExists() const
+    {
+        return std::filesystem::exists(_snapshot_file_path);
+    }
+
+    std::filesystem::path PersistentStorageEngine::getSnapshotPath() const
+    {
+        return _snapshot_file_path;
+    }
+
+    void PersistentStorageEngine::applyWalEntry(const WalEntry &entry)
+    {
+        switch (entry.type)
+        {
+        case WalEntryType::PUT:
+            _data[entry.key] = entry.value;
+            LOG_DEBUG("Replayed PUT: %s -> %s", entry.key.c_str(), entry.value.c_str());
+            break;
+
+        case WalEntryType::DELETE:
+            _data.erase(entry.key);
+            LOG_DEBUG("Replayed DELETE: %s", entry.key.c_str());
+            break;
+
+        case WalEntryType::CHECKPOINT:
+            LOG_DEBUG("Replayed CHECKPOINT at sequence %lu", entry.sequence_number);
+            break;
+
+        default:
+            LOG_WARN("Unknown WAL entry type: %d", static_cast<int>(entry.type));
+            break;
+        }
+    }
 } // namespace distributed_db
