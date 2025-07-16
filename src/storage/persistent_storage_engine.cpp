@@ -35,4 +35,64 @@ namespace distributed_db
             LOG_ERROR("Failed to flush data during shutdown");
         }
     }
+
+    Result<Value> PersistentStorageEngine::get(const Key &key)
+    {
+        const std::shared_lock lock(_mutex);
+
+        const auto it = _data.find(key);
+        if (it == _data.end())
+        {
+            LOG_DEBUG("Key not found: %s", key.c_str());
+            return Result<Value>(Status::NOT_FOUND);
+        }
+
+        LOG_DEBUG("Retrieved key: %s -> %s", key.c_str(), it->second.c_str());
+        return Result<Value>(it->second);
+    }
+
+    Status PersistentStorageEngine::put(const Key &key, const Value &value)
+    {
+        const auto wal_status = _wal->logPut(key, value);
+        if (wal_status != Status::OK)
+        {
+            LOG_ERROR("Failed to log PUT operation to WAL");
+            return wal_status;
+        }
+
+        {
+            const std::unique_lock lock(_mutex);
+            _data[key] = value;
+        }
+
+        LOG_DEBUG("Stored key: %s -> %s", key.c_str(), value.c_str());
+        return Status::OK;
+    }
+
+    Status PersistentStorageEngine::remove(const Key &key)
+    {
+        {
+            const std::shared_lock lock(_mutex);
+            if (_data.find(key) == _data.end())
+            {
+                LOG_DEBUG("Key not found for removal: %s", key.c_str());
+                return Status::NOT_FOUND;
+            }
+        }
+
+        const auto wal_status = _wal->logDelete(key);
+        if (wal_status != Status::OK)
+        {
+            LOG_ERROR("Failed to log DELETE operation to WAL");
+            return wal_status;
+        }
+
+        {
+            const std::unique_lock lock(_mutex);
+            _data.erase(key);
+        }
+
+        LOG_DEBUG("Removed key: %s", key.c_str());
+        return Status::OK;
+    }
 } // namespace distributed_db
