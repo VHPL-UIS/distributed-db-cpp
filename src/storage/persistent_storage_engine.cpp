@@ -143,4 +143,39 @@ namespace distributed_db
         LOG_DEBUG("Retrieved batch of %zu items", result.size());
         return Result<std::unordered_map<Key, Value>>(std::move(result));
     }
+
+    std::size_t PersistentStorageEngine::size() const
+    {
+        const std::shared_lock lock(_mutex);
+        return _data.size();
+    }
+
+    std::vector<Key> PersistentStorageEngine::getAllKeys() const
+    {
+        const std::shared_lock lock(_mutex);
+
+        std::vector<Key> keys;
+        keys.reserve(_data.size());
+
+        for (const auto &[key, _] : _data)
+        {
+            keys.push_back(key);
+        }
+
+        return keys;
+    }
+
+    void PersistentStorageEngine::clear()
+    {
+        _wal->logCheckpoint();
+
+        {
+            const std::unique_lock lock(_mutex);
+            _data.clear();
+        }
+
+        saveSnapshot();
+
+        LOG_DEBUG("Cleared all data");
+    }
 } // namespace distributed_db
