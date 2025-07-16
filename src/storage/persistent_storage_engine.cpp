@@ -101,4 +101,28 @@ namespace distributed_db
         const std::shared_lock lock(_mutex);
         return _data.find(key) != _data.end();
     }
+
+    Status PersistentStorageEngine::putBatch(const std::unordered_map<Key, Value> &batch)
+    {
+        for (const auto &[key, value] : batch)
+        {
+            const auto wal_status = _wal->logPut(key, value);
+            if (wal_status != Status::OK)
+            {
+                LOG_ERROR("Failed to log batch PUT operation to WAL for key: %s", key.c_str());
+                return wal_status;
+            }
+        }
+
+        {
+            const std::unique_lock lock(_mutex);
+            for (const auto &[key, value] : batch)
+            {
+                _data[key] = value;
+            }
+        }
+
+        LOG_DEBUG("Stored batch of %zu items", batch.size());
+        return Status::OK;
+    }
 } // namespace distributed_db
