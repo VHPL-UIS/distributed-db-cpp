@@ -95,4 +95,10 @@ namespace distributed_db
         LOG_DEBUG("Removed key: %s", key.c_str());
         return Status::OK;
     }
+
+    bool PersistentStorageEngine::exists(const Key &key)
+    {
+        const std::shared_lock lock(_mutex);
+        return _data.find(key) != _data.end();
+    }
 } // namespace distributed_db
