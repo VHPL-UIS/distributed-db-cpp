@@ -272,4 +272,18 @@ namespace distributed_db
     {
         return _data_directory;
     }
+
+    bool PersistentStorageEngine::initializeDataDirectory()
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(_data_directory, ec);
+
+        if (ec)
+        {
+            LOG_ERROR("Failed to create data directory: %s", ec.message().c_str());
+            return false;
+        }
+
+        return true;
+    }
 } // namespace distributed_db
