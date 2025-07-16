@@ -372,4 +372,101 @@ namespace distributed_db
         LOG_INFO("WAL replay completed");
         return Status::OK;
     }
+
+    Status PersistentStorageEngine::serializeSnapshot(std::ofstream &file) const
+    {
+        file.write(reinterpret_cast<const char *>(&SNAPSHOT_MAGIC_NUMBER), sizeof(SNAPSHOT_MAGIC_NUMBER));
+        file.write(reinterpret_cast<const char *>(&SNAPSHOT_VERSION), sizeof(SNAPSHOT_VERSION));
+        file.write(reinterpret_cast<const char *>(&_last_checkpoint_sequence), sizeof(_last_checkpoint_sequence));
+
+        const auto entry_count = static_cast<std::uint64_t>(_data.size());
+        file.write(reinterpret_cast<const char *>(&entry_count), sizeof(entry_count));
+
+        for (const auto &[key, value] : _data)
+        {
+            const auto key_size = static_cast<std::uint32_t>(key.size());
+            file.write(reinterpret_cast<const char *>(&key_size), sizeof(key_size));
+            file.write(key.data(), key.size());
+
+            const auto value_size = static_cast<std::uint32_t>(value.size());
+            file.write(reinterpret_cast<const char *>(&value_size), sizeof(value_size));
+            file.write(value.data(), value.size());
+        }
+
+        if (file.fail())
+        {
+            LOG_ERROR("Failed to write snapshot data");
+            return Status::INTERNAL_ERROR;
+        }
+
+        return Status::OK;
+    }
+
+    Status PersistentStorageEngine::deserializeSnapshot(std::ifstream &file)
+    {
+        std::uint32_t magic;
+        std::uint8_t version;
+        std::uint64_t checkpoint_sequence;
+
+        file.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        file.read(reinterpret_cast<char *>(&version), sizeof(version));
+        file.read(reinterpret_cast<char *>(&checkpoint_sequence), sizeof(checkpoint_sequence));
+
+        if (file.fail() || magic != SNAPSHOT_MAGIC_NUMBER || version != SNAPSHOT_VERSION)
+        {
+            LOG_ERROR("Invalid snapshot file header");
+            return Status::INTERNAL_ERROR;
+        }
+
+        _last_checkpoint_sequence = checkpoint_sequence;
+
+        std::uint64_t entry_count;
+        file.read(reinterpret_cast<char *>(&entry_count), sizeof(entry_count));
+
+        if (file.fail())
+        {
+            LOG_ERROR("Failed to read entry count from snapshot");
+            return Status::INTERNAL_ERROR;
+        }
+
+        _data.clear();
+        _data.reserve(entry_count);
+
+        for (std::uint64_t i = 0; i < entry_count; ++i)
+        {
+            std::uint32_t key_size;
+            file.read(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+
+            if (file.fail() || key_size > 1024 * 1024)
+            {
+                LOG_ERROR("Invalid key size in snapshot: %u", key_size);
+                return Status::INTERNAL_ERROR;
+            }
+
+            std::string key(key_size, '\0');
+            file.read(key.data(), key_size);
+
+            std::uint32_t value_size;
+            file.read(reinterpret_cast<char *>(&value_size), sizeof(value_size));
+
+            if (file.fail() || value_size > 1024 * 1024)
+            {
+                LOG_ERROR("Invalid value size in snapshot: %u", value_size);
+                return Status::INTERNAL_ERROR;
+            }
+
+            std::string value(value_size, '\0');
+            file.read(value.data(), value_size);
+
+            if (file.fail())
+            {
+                LOG_ERROR("Failed to read key-value pair %lu from snapshot", i);
+                return Status::INTERNAL_ERROR;
+            }
+
+            _data[std::move(key)] = std::move(value);
+        }
+
+        return Status::OK;
+    }
 } // namespace distributed_db
