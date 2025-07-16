@@ -225,4 +225,51 @@ namespace distributed_db
         LOG_INFO("Checkpoint completed at sequence %lu", _last_checkpoint_sequence);
         return Status::OK;
     }
+
+    Status PersistentStorageEngine::recover()
+    {
+        LOG_INFO("Starting recovery process...");
+
+        if (snapshotExists())
+        {
+            LOG_INFO("Loading snapshot from: %s", _snapshot_file_path.string().c_str());
+            const auto snapshot_status = loadSnapshot();
+            if (snapshot_status != Status::OK)
+            {
+                LOG_ERROR("Failed to load snapshot, starting with empty state");
+                _data.clear();
+                _last_checkpoint_sequence = 0;
+            }
+        }
+        else
+        {
+            LOG_INFO("No snapshot found, starting with empty state");
+            _last_checkpoint_sequence = 0;
+        }
+
+        const auto replay_status = replayWalEntries();
+        if (replay_status != Status::OK)
+        {
+            LOG_ERROR("Failed to replay WAL entries");
+            return replay_status;
+        }
+
+        LOG_INFO("Recovery completed, restored %zu keys", _data.size());
+        return Status::OK;
+    }
+
+    std::size_t PersistentStorageEngine::getWalEntryCount() const
+    {
+        return _wal->getEntryCount();
+    }
+
+    std::uint64_t PersistentStorageEngine::getCurrentWalSequence() const
+    {
+        return _wal->getCurrentSequenceNumber();
+    }
+
+    const std::filesystem::path &PersistentStorageEngine::getDataDirectory() const noexcept
+    {
+        return _data_directory;
+    }
 } // namespace distributed_db
