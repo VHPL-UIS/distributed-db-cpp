@@ -286,4 +286,29 @@ namespace distributed_db
 
         return true;
     }
+
+    Status PersistentStorageEngine::loadSnapshot()
+    {
+        if (!snapshotExists())
+        {
+            return Status::NOT_FOUND;
+        }
+
+        std::ifstream file(_snapshot_file_path, std::ios::binary);
+        if (!file.is_open())
+        {
+            LOG_ERROR("Failed to open snapshot file: %s", _snapshot_file_path.string().c_str());
+            return Status::INTERNAL_ERROR;
+        }
+
+        const auto status = deserializeSnapshot(file);
+        if (status != Status::OK)
+        {
+            LOG_ERROR("Failed to deserialize snapshot");
+            return status;
+        }
+
+        LOG_INFO("Loaded snapshot with %zu keys", _data.size());
+        return Status::OK;
+    }
 } // namespace distributed_db
