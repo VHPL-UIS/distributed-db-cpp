@@ -117,6 +117,27 @@ namespace distributed_db
     private:
         Key _key;
     };
+
+    class GetResponseMessage : public Message
+    {
+    public:
+        GetResponseMessage() : Message(MessageType::GET_RESPONSE) {}
+        GetResponseMessage(std::uint32_t request_id, Status status, Value value = "")
+            : Message(MessageType::GET_RESPONSE, request_id), _status(status), _value(std::move(value)) {}
+
+        [[nodiscard]] Status getStatus() const noexcept { return _status; }
+        [[nodiscard]] const Value &getValue() const noexcept { return _value; }
+
+        void setStatus(Status status) noexcept { _status = status; }
+        void setValue(Value value) { _value = std::move(value); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        Status _status = Status::OK;
+        Value _value;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
