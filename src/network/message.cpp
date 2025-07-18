@@ -250,4 +250,48 @@ namespace distributed_db
 
         return deserializeString(data, offset, _value);
     }
+
+    Result<std::vector<std::uint8_t>> PutRequestMessage::serialize() const
+    {
+        std::vector<std::uint8_t> payload;
+        serializeString(_key, payload);
+        serializeString(_value, payload);
+
+        const_cast<PutRequestMessage *>(this)->updatePayloadSize(static_cast<std::uint32_t>(payload.size()));
+
+        std::vector<std::uint8_t> buffer;
+        const auto status = serializeHeader(buffer);
+        if (status != Status::OK)
+        {
+            return Result<std::vector<std::uint8_t>>(status);
+        }
+
+        buffer.insert(buffer.end(), payload.begin(), payload.end());
+        return Result<std::vector<std::uint8_t>>(std::move(buffer));
+    }
+
+    Status PutRequestMessage::deserialize(const std::vector<std::uint8_t> &data)
+    {
+        const auto header_status = deserializeHeader(data);
+        if (header_status != Status::OK)
+        {
+            return header_status;
+        }
+
+        if (data.size() < MessageHeader::HEADER_SIZE + _header.payload_size)
+        {
+            return Status::INVALID_REQUEST;
+        }
+
+        std::size_t offset = MessageHeader::HEADER_SIZE;
+
+        auto status = deserializeString(data, offset, _key);
+        if (status != Status::OK)
+        {
+            return status;
+        }
+
+        return deserializeString(data, offset, _value);
+    }
+
 } // namespace distributed_db
