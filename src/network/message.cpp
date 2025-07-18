@@ -138,4 +138,34 @@ namespace distributed_db
 
         return Result<std::unique_ptr<Message>>(std::move(message));
     }
+
+    static void serializeString(const std::string &str, std::vector<std::uint8_t> &buffer)
+    {
+        const auto size = static_cast<std::uint32_t>(str.size());
+        const auto size_bytes = reinterpret_cast<const std::uint8_t *>(&size);
+        buffer.insert(buffer.end(), size_bytes, size_bytes + sizeof(size));
+        buffer.insert(buffer.end(), str.begin(), str.end());
+    }
+
+    static Status deserializeString(const std::vector<std::uint8_t> &data, std::size_t &offset, std::string &str)
+    {
+        if (offset + sizeof(std::uint32_t) > data.size())
+        {
+            return Status::INVALID_REQUEST;
+        }
+
+        std::uint32_t size;
+        std::memcpy(&size, data.data() + offset, sizeof(size));
+        offset += sizeof(size);
+
+        if (offset + size > data.size())
+        {
+            return Status::INVALID_REQUEST;
+        }
+
+        str = std::string(data.begin() + offset, data.begin() + offset + size);
+        offset += size;
+
+        return Status::OK;
+    }
 } // namespace distributed_db
