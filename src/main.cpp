@@ -17,9 +17,8 @@ void printBanner()
 {
     std::cout << R"(
 ╔══════════════════════════════════════════════════════════════╗
-║                    Distributed Database                     ║
-║                         Episode 2                           ║
-║              Persistent Storage with WAL                    ║
+║                    Distributed Database                      ║
+║              Persistent Storage with WAL                     ║
 ╚══════════════════════════════════════════════════════════════╝
 )" << std::endl;
 }
