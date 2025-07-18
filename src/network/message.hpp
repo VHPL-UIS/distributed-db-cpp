@@ -97,6 +97,26 @@ namespace distributed_db
         [[nodiscard]] Status serializeHeader(std::vector<std::uint8_t> &buffer) const;
         [[nodiscard]] Status deserializeHeader(const std::vector<std::uint8_t> &data);
     };
+
+    class GetRequestMessage : public Message
+    {
+    public:
+        GetRequestMessage() : Message(MessageType::GET_REQUEST)
+        {
+        }
+        explicit GetRequestMessage(Key key) : Message(MessageType::GET_REQUEST), _key(std::move(key))
+        {
+        }
+
+        [[nodiscard]] const Key &getKey() const noexcept { return _key; }
+        void setKey(Key key) { _key = std::move(key); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        Key _key;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
