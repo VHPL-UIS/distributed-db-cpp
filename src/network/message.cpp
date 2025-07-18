@@ -86,4 +86,56 @@ namespace distributed_db
 
         return Status::OK;
     }
+
+    std::unique_ptr<Message> Message::createMessage(MessageType type)
+    {
+        switch (type)
+        {
+        case MessageType::GET_REQUEST:
+            return std::make_unique<GetRequestMessage>();
+        case MessageType::GET_RESPONSE:
+            return std::make_unique<GetResponseMessage>();
+        case MessageType::PUT_REQUEST:
+            return std::make_unique<PutRequestMessage>();
+        case MessageType::PUT_RESPONSE:
+            return std::make_unique<PutResponseMessage>();
+        case MessageType::DELETE_REQUEST:
+            return std::make_unique<DeleteRequestMessage>();
+        case MessageType::DELETE_RESPONSE:
+            return std::make_unique<DeleteResponseMessage>();
+        case MessageType::HEARTBEAT:
+            return std::make_unique<HeartbeatMessage>();
+        case MessageType::HEARTBEAT_RESPONSE:
+            return std::make_unique<HeartbeatResponseMessage>();
+        case MessageType::ERROR_RESPONSE:
+            return std::make_unique<ErrorResponseMessage>();
+        default:
+            return nullptr;
+        }
+    }
+
+    Result<std::unique_ptr<Message>> Message::fromBytes(const std::vector<std::uint8_t> &data)
+    {
+        if (data.size() < MessageHeader::HEADER_SIZE)
+        {
+            return Result<std::unique_ptr<Message>>(Status::INVALID_REQUEST);
+        }
+
+        const auto type = static_cast<MessageType>(data[sizeof(std::uint32_t) + sizeof(std::uint8_t)]);
+
+        auto message = createMessage(type);
+        if (!message)
+        {
+            LOG_ERROR("Unknown message type: %d", static_cast<int>(type));
+            return Result<std::unique_ptr<Message>>(Status::INVALID_REQUEST);
+        }
+
+        const auto status = message->deserialize(data);
+        if (status != Status::OK)
+        {
+            return Result<std::unique_ptr<Message>>(status);
+        }
+
+        return Result<std::unique_ptr<Message>>(std::move(message));
+    }
 } // namespace distributed_db
