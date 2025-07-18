@@ -138,6 +138,27 @@ namespace distributed_db
         Status _status = Status::OK;
         Value _value;
     };
+
+    class PutRequestMessage : public Message
+    {
+    public:
+        PutRequestMessage() : Message(MessageType::PUT_REQUEST) {}
+        PutRequestMessage(Key key, Value value)
+            : Message(MessageType::PUT_REQUEST), key_(std::move(key)), value_(std::move(value)) {}
+
+        [[nodiscard]] const Key &getKey() const noexcept { return _key; }
+        [[nodiscard]] const Value &getValue() const noexcept { return _value; }
+
+        void setKey(Key key) { _key = std::move(key); }
+        void setValue(Value value) { _value = std::move(value); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        Key _key;
+        Value _value;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
