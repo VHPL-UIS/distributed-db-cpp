@@ -265,6 +265,11 @@ namespace distributed_db
         Status error_status_ = Status::INTERNAL_ERROR;
         std::string _error_message;
     };
+
+    [[nodiscard]] std::string messageTypeToString(MessageType type);
+    [[nodiscard]] bool isRequestMessage(MessageType type) noexcept;
+    [[nodiscard]] bool isResponseMessage(MessageType type) noexcept;
+    [[nodiscard]] MessageType getResponseType(MessageType request_type);
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
