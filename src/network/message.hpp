@@ -226,6 +226,23 @@ namespace distributed_db
     private:
         NodeId _node_id;
     };
+
+    class HeartbeatResponseMessage : public Message
+    {
+    public:
+        HeartbeatResponseMessage() : Message(MessageType::HEARTBEAT_RESPONSE) {}
+        HeartbeatResponseMessage(std::uint32_t request_id, NodeId node_id)
+            : Message(MessageType::HEARTBEAT_RESPONSE, request_id), _node_id(std::move(node_id)) {}
+
+        [[nodiscard]] const NodeId &getNodeId() const noexcept { return _node_id; }
+        void setNodeId(NodeId node_id) { _node_id = std::move(node_id); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        NodeId _node_id;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
