@@ -474,4 +474,51 @@ namespace distributed_db
         std::size_t offset = MessageHeader::HEADER_SIZE;
         return deserializeString(data, offset, node_id);
     }
+
+    Result<std::vector<std::uint8_t>> ErrorResponseMessage::serialize() const
+    {
+        std::vector<std::uint8_t> payload;
+
+        const auto status_byte = static_cast<std::uint8_t>(_error_status);
+        payload.push_back(status_byte);
+
+        serializeString(_error_message, payload);
+
+        const_cast<ErrorResponseMessage *>(this)->updatePayloadSize(static_cast<std::uint32_t>(payload.size()));
+
+        std::vector<std::uint8_t> buffer;
+        const auto status = serializeHeader(buffer);
+        if (status != Status::OK)
+        {
+            return Result<std::vector<std::uint8_t>>(status);
+        }
+
+        buffer.insert(buffer.end(), payload.begin(), payload.end());
+        return Result<std::vector<std::uint8_t>>(std::move(buffer));
+    }
+
+    Status ErrorResponseMessage::deserialize(const std::vector<std::uint8_t> &data)
+    {
+        const auto header_status = deserializeHeader(data);
+        if (header_status != Status::OK)
+        {
+            return header_status;
+        }
+
+        if (data.size() < MessageHeader::HEADER_SIZE + _header.payload_size)
+        {
+            return Status::INVALID_REQUEST;
+        }
+
+        std::size_t offset = MessageHeader::HEADER_SIZE;
+
+        if (offset >= data.size())
+        {
+            return Status::INVALID_REQUEST;
+        }
+        _error_status = static_cast<Status>(data[offset]);
+        offset += sizeof(std::uint8_t);
+
+        return deserializeString(data, offset, _error_message);
+    }
 } // namespace distributed_db
