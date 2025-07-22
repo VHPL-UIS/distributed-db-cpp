@@ -243,6 +243,28 @@ namespace distributed_db
     private:
         NodeId _node_id;
     };
+
+    class ErrorResponseMessage : public Message
+    {
+    public:
+        ErrorResponseMessage() : Message(MessageType::ERROR_RESPONSE) {}
+        ErrorResponseMessage(std::uint32_t request_id, Status error_status, std::string error_message = "")
+            : Message(MessageType::ERROR_RESPONSE, request_id),
+              _error_status(error_status), _error_message(std::move(error_message)) {}
+
+        [[nodiscard]] Status getErrorStatus() const noexcept { return _error_status; }
+        [[nodiscard]] const std::string &getErrorMessage() const noexcept { return _error_message; }
+
+        void setErrorStatus(Status status) noexcept { _error_status = status; }
+        void setErrorMessage(std::string message) { _error_message = std::move(message); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        Status error_status_ = Status::INTERNAL_ERROR;
+        std::string _error_message;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
