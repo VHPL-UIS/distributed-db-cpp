@@ -192,6 +192,23 @@ namespace distributed_db
     private:
         Key _key;
     };
+
+    class DeleteResponseMessage : public Message
+    {
+    public:
+        DeleteResponseMessage() : Message(MessageType::DELETE_RESPONSE) {}
+        DeleteResponseMessage(std::uint32_t request_id, Status status)
+            : Message(MessageType::DELETE_RESPONSE, request_id), _status(status) {}
+
+        [[nodiscard]] Status getStatus() const noexcept { return _status; }
+        void setStatus(Status status) noexcept { _status = status; }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        Status _status = Status::OK;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
