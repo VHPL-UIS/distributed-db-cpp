@@ -521,4 +521,115 @@ namespace distributed_db
 
         return deserializeString(data, offset, _error_message);
     }
+
+    std::string messageTypeToString(MessageType type)
+    {
+        switch (type)
+        {
+        case MessageType::GET_REQUEST:
+            return "GET_REQUEST";
+        case MessageType::PUT_REQUEST:
+            return "PUT_REQUEST";
+        case MessageType::DELETE_REQUEST:
+            return "DELETE_REQUEST";
+        case MessageType::BATCH_GET_REQUEST:
+            return "BATCH_GET_REQUEST";
+        case MessageType::BATCH_PUT_REQUEST:
+            return "BATCH_PUT_REQUEST";
+        case MessageType::GET_RESPONSE:
+            return "GET_RESPONSE";
+        case MessageType::PUT_RESPONSE:
+            return "PUT_RESPONSE";
+        case MessageType::DELETE_RESPONSE:
+            return "DELETE_RESPONSE";
+        case MessageType::BATCH_GET_RESPONSE:
+            return "BATCH_GET_RESPONSE";
+        case MessageType::BATCH_PUT_RESPONSE:
+            return "BATCH_PUT_RESPONSE";
+        case MessageType::HEARTBEAT:
+            return "HEARTBEAT";
+        case MessageType::HEARTBEAT_RESPONSE:
+            return "HEARTBEAT_RESPONSE";
+        case MessageType::NODE_JOIN:
+            return "NODE_JOIN";
+        case MessageType::NODE_LEAVE:
+            return "NODE_LEAVE";
+        case MessageType::VOTE_REQUEST:
+            return "VOTE_REQUEST";
+        case MessageType::VOTE_RESPONSE:
+            return "VOTE_RESPONSE";
+        case MessageType::APPEND_ENTRIES:
+            return "APPEND_ENTRIES";
+        case MessageType::APPEND_ENTRIES_RESPONSE:
+            return "APPEND_ENTRIES_RESPONSE";
+        case MessageType::ERROR_RESPONSE:
+            return "ERROR_RESPONSE";
+        default:
+            return "UNKNOWN";
+        }
+    }
+
+    bool isRequestMessage(MessageType type) noexcept
+    {
+        switch (type)
+        {
+        case MessageType::GET_REQUEST:
+        case MessageType::PUT_REQUEST:
+        case MessageType::DELETE_REQUEST:
+        case MessageType::BATCH_GET_REQUEST:
+        case MessageType::BATCH_PUT_REQUEST:
+        case MessageType::HEARTBEAT:
+        case MessageType::NODE_JOIN:
+        case MessageType::NODE_LEAVE:
+        case MessageType::VOTE_REQUEST:
+        case MessageType::APPEND_ENTRIES:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    bool isResponseMessage(MessageType type) noexcept
+    {
+        switch (type)
+        {
+        case MessageType::GET_RESPONSE:
+        case MessageType::PUT_RESPONSE:
+        case MessageType::DELETE_RESPONSE:
+        case MessageType::BATCH_GET_RESPONSE:
+        case MessageType::BATCH_PUT_RESPONSE:
+        case MessageType::HEARTBEAT_RESPONSE:
+        case MessageType::VOTE_RESPONSE:
+        case MessageType::APPEND_ENTRIES_RESPONSE:
+        case MessageType::ERROR_RESPONSE:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    MessageType getResponseType(MessageType request_type)
+    {
+        switch (request_type)
+        {
+        case MessageType::GET_REQUEST:
+            return MessageType::GET_RESPONSE;
+        case MessageType::PUT_REQUEST:
+            return MessageType::PUT_RESPONSE;
+        case MessageType::DELETE_REQUEST:
+            return MessageType::DELETE_RESPONSE;
+        case MessageType::BATCH_GET_REQUEST:
+            return MessageType::BATCH_GET_RESPONSE;
+        case MessageType::BATCH_PUT_REQUEST:
+            return MessageType::BATCH_PUT_RESPONSE;
+        case MessageType::HEARTBEAT:
+            return MessageType::HEARTBEAT_RESPONSE;
+        case MessageType::VOTE_REQUEST:
+            return MessageType::VOTE_RESPONSE;
+        case MessageType::APPEND_ENTRIES:
+            return MessageType::APPEND_ENTRIES_RESPONSE;
+        default:
+            return MessageType::ERROR_RESPONSE;
+        }
+    }
 } // namespace distributed_db
