@@ -366,4 +366,42 @@ namespace distributed_db
         std::size_t offset = MessageHeader::HEADER_SIZE;
         return deserializeString(data, offset, _key);
     }
+
+    Result<std::vector<std::uint8_t>> DeleteResponseMessage::serialize() const
+    {
+        std::vector<std::uint8_t> payload;
+        const auto status_byte = static_cast<std::uint8_t>(_status);
+        payload.push_back(status_byte);
+
+        const_cast<DeleteResponseMessage *>(this)->updatePayloadSize(static_cast<std::uint32_t>(payload.size()));
+
+        std::vector<std::uint8_t> buffer;
+        const auto status = serializeHeader(buffer);
+        if (status != Status::OK)
+        {
+            return Result<std::vector<std::uint8_t>>(status);
+        }
+
+        buffer.insert(buffer.end(), payload.begin(), payload.end());
+        return Result<std::vector<std::uint8_t>>(std::move(buffer));
+    }
+
+    Status DeleteResponseMessage::deserialize(const std::vector<std::uint8_t> &data)
+    {
+        const auto header_status = deserializeHeader(data);
+        if (header_status != Status::OK)
+        {
+            return header_status;
+        }
+
+        if (data.size() < MessageHeader::HEADER_SIZE + 1)
+        {
+            return Status::INVALID_REQUEST;
+        }
+
+        const std::size_t offset = MessageHeader::HEADER_SIZE;
+        _status = static_cast<Status>(data[offset]);
+
+        return Status::OK;
+    }
 } // namespace distributed_db
