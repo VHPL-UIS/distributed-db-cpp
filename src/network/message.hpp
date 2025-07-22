@@ -209,6 +209,23 @@ namespace distributed_db
     private:
         Status _status = Status::OK;
     };
+
+    class HeartbeatMessage : public Message
+    {
+    public:
+        HeartbeatMessage() : Message(MessageType::HEARTBEAT) {}
+        explicit HeartbeatMessage(NodeId node_id)
+            : Message(MessageType::HEARTBEAT), _node_id(std::move(node_id)) {}
+
+        [[nodiscard]] const NodeId &getNodeId() const noexcept { return _node_id; }
+        void setNodeId(NodeId node_id) { _node_id = std::move(node_id); }
+
+        [[nodiscard]] Result<std::vector<std::uint8_t>> serialize() const override;
+        [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
+
+    private:
+        NodeId _node_id;
+    };
 } // namespace distributed_db
 
 #endif // __MESSAGE_HPP__
