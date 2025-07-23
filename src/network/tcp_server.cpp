@@ -156,4 +156,61 @@ namespace distributed_db
         return Status::OK;
     }
 
+    Result<std::vector<std::uint8_t>> Connection::receiveBytes(std::size_t size)
+    {
+        std::vector<std::uint8_t> buffer(size);
+        const auto bytes_received = recv(_socket, reinterpret_cast<char *>(buffer.data()), size, 0);
+
+        if (bytes_received == SOCKET_ERROR_VALUE)
+        {
+#ifdef _WIN32
+            const auto error = WSAGetLastError();
+            if (error == WSAEWOULDBLOCK)
+            {
+                return Result<std::vector<std::uint8_t>>(Status::TIMEOUT);
+            }
+#else
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                return Result<std::vector<std::uint8_t>>(Status::TIMEOUT);
+            }
+#endif
+            LOG_ERROR("Receive failed: %s", socket_utils::getLastSocketError().c_str());
+            _connected = false;
+            return Result<std::vector<std::uint8_t>>(Status::NETWORK_ERROR);
+        }
+
+        if (bytes_received == 0)
+        {
+            LOG_DEBUG("Connection closed by peer during receive");
+            _connected = false;
+            return Result<std::vector<std::uint8_t>>(Status::NETWORK_ERROR);
+        }
+
+        buffer.resize(static_cast<std::size_t>(bytes_received));
+        return Result<std::vector<std::uint8_t>>(std::move(buffer));
+    }
+
+    Result<std::vector<std::uint8_t>> Connection::receiveExactBytes(std::size_t size)
+    {
+        std::vector<std::uint8_t> buffer;
+        buffer.reserve(size);
+
+        while (buffer.size() < size)
+        {
+            const auto remaining = size - buffer.size();
+            auto chunk_result = receiveBytes(remaining);
+
+            if (!chunk_result.ok())
+            {
+                return chunk_result;
+            }
+
+            const auto &chunk = chunk_result.value();
+            buffer.insert(buffer.end(), chunk.begin(), chunk.end());
+        }
+
+        return Result<std::vector<std::uint8_t>>(std::move(buffer));
+    }
+
 } // distributed_db
