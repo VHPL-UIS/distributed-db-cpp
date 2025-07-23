@@ -7,6 +7,10 @@
 #include <mutex>
 #include <vector>
 #include <memory>
+#include <thread>
+#include <condition_variable>
+#include <functional>
+#include <unordered_map>
 
 #ifdef _WIN32
 using socket_t = uintptr_t;
@@ -55,6 +59,72 @@ namespace distributed_db
         [[nodiscard]] Status sendBytes(const std::vector<std::uint8_t> &data);
         [[nodiscard]] Result<std::vector<std::uint8_t>> receiveBytes(std::size_t size);
         [[nodiscard]] Result<std::vector<std::uint8_t>> receiveExactBytes(std::size_t size);
+    };
+
+    using MessageHandler = std::function<std::unique_ptr<Message>(const Message &, const Connection &)>;
+
+    class TcpServer
+    {
+    public:
+        explicit TcpServer(Port port);
+        explicit TcpServer(Port port, const std::string &bind_address);
+        ~TcpServer();
+
+        TcpServer(const TcpServer &) = delete;
+        TcpServer &operator=(const TcpServer &) = delete;
+        TcpServer(TcpServer &&) = default;
+        TcpServer &operator=(TcpServer &&) = default;
+
+        [[nodiscard]] Status start();
+        void stop();
+        [[nodiscard]] bool isRunning() const noexcept { return _running; }
+
+        void setMessageHandler(MessageHandler handler) { _message_handler = std::move(handler); }
+        void setStorageEngine(std::shared_ptr<StorageEngine> storage) { _storage_engine = std::move(storage); }
+
+        [[nodiscard]] Port getPort() const noexcept { return _port; }
+        [[nodiscard]] const std::string &getBindAddress() const noexcept { return _bind_address; }
+        [[nodiscard]] std::size_t getConnectionCount() const;
+        [[nodiscard]] std::vector<std::uint64_t> getActiveConnections() const;
+
+        void setMaxConnections(std::size_t max_connections) noexcept { _max_connections = max_connections; }
+        void setReceiveTimeout(std::chrono::milliseconds timeout) noexcept { _receive_timeout = timeout; }
+
+    private:
+        Port _port;
+        std::string _bind_address;
+        socket_t _server_socket;
+        std::atomic<bool> _running;
+        std::atomic<bool> _should_stop;
+
+        std::unique_ptr<std::thread> _accept_thread;
+        std::vector<std::unique_ptr<std::thread>> _worker_threads;
+        mutable std::mutex _connections_mutex;
+        std::condition_variable _stop_condition;
+
+        std::unordered_map<std::uint64_t, std::unique_ptr<Connection>> _active_connections;
+        std::size_t _max_connections;
+        std::chrono::milliseconds _receive_timeout;
+
+        MessageHandler _message_handler;
+        std::shared_ptr<StorageEngine> _storage_engine;
+
+        [[nodiscard]] Status initializeSocket();
+        void acceptLoop();
+        void handleConnection(std::unique_ptr<Connection> connection);
+        void processMessage(const std::unique_ptr<Message> &request, Connection &connection);
+        void cleanupConnections();
+
+        [[nodiscard]] std::unique_ptr<Message> handleGetRequest(const GetRequestMessage &request);
+        [[nodiscard]] std::unique_ptr<Message> handlePutRequest(const PutRequestMessage &request);
+        [[nodiscard]] std::unique_ptr<Message> handleDeleteRequest(const DeleteRequestMessage &request);
+        [[nodiscard]] std::unique_ptr<Message> handleHeartbeat(const HeartbeatMessage &request);
+
+        [[nodiscard]] std::string getSocketAddress(socket_t socket) const;
+        void closeSocket(socket_t socket);
+
+        [[nodiscard]] Status setSocketOptions(socket_t socket);
+        [[nodiscard]] Status setNonBlocking(socket_t socket, bool non_blocking);
     };
 } // distributed_db
 
