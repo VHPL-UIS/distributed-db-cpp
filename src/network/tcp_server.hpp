@@ -126,6 +126,15 @@ namespace distributed_db
         [[nodiscard]] Status setSocketOptions(socket_t socket);
         [[nodiscard]] Status setNonBlocking(socket_t socket, bool non_blocking);
     };
+
+    namespace socket_utils
+    {
+        [[nodiscard]] Status initializeNetworking();
+        void cleanupNetworking();
+        [[nodiscard]] std::string getLastSocketError();
+        [[nodiscard]] bool isSocketValid(socket_t socket);
+        [[nodiscard]] Status closeSocket(socket_t socket);
+    }
 } // distributed_db
 
 #endif // __TCP_SERVER_HPP__
