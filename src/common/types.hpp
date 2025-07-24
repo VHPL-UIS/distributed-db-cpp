@@ -74,15 +74,6 @@ namespace distributed_db
 
         NodeInfo(NodeId id, IPAddress ip, Port port) : id(std::move(id)), ip(std::move(ip)), port(port), last_heartbeat(std::chrono::system_clock::now()) {}
     };
-
-    enum class MessageType
-    {
-        HEARTBEAT,
-        REQUEST_VOTE,
-        APPEND_ENTRIES,
-        CLIENT_REQUEST,
-        CLIENT_RESPONSE
-    };
 } // namespace distributed_db
 
 #endif // __TYPES_HPP__

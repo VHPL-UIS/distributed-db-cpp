@@ -160,6 +160,7 @@ namespace distributed_db
         }
 
         // Send message asynchronously
+        // std::thread([this, request, timeout]()
         std::async(std::launch::async, [this, &request, timeout]()
                    {
         const auto send_status = sendMessage(request);
@@ -299,7 +300,7 @@ namespace distributed_db
 
         // Set socket options
         int reuse = 1;
-        setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&reuse), sizeof(reuse));
+        setsockopt(_socket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&reuse), sizeof(reuse));
 
         return Status::OK;
     }
@@ -497,7 +498,7 @@ namespace distributed_db
         while (total_sent < data.size())
         {
             const auto bytes_to_send = data.size() - total_sent;
-            const auto bytes_sent = send(socket_, buffer + total_sent, bytes_to_send, 0);
+            const auto bytes_sent = send(_socket, buffer + total_sent, bytes_to_send, 0);
 
             if (bytes_sent == SOCKET_ERROR_VALUE)
             {
@@ -534,7 +535,7 @@ namespace distributed_db
     Result<std::vector<std::uint8_t>> TcpClient::receiveBytes(std::size_t size)
     {
         std::vector<std::uint8_t> buffer(size);
-        const auto bytes_received = recv(socket_, reinterpret_cast<char *>(buffer.data()), size, 0);
+        const auto bytes_received = recv(_socket, reinterpret_cast<char *>(buffer.data()), size, 0);
 
         if (bytes_received == SOCKET_ERROR_VALUE)
         {
@@ -631,7 +632,7 @@ namespace distributed_db
             }
 
             // Connect
-            if (::connect(socket_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0)
+            if (::connect(_socket, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0)
             {
                 _connected = true;
                 return Status::OK;
@@ -700,7 +701,7 @@ namespace distributed_db
     void ConnectionPool::clear()
     {
         const std::lock_guard<std::mutex> lock(_pool_mutex);
-        servers_.clear();
+        _servers.clear();
     }
 
     Result<Value> ConnectionPool::get(const Key &key)

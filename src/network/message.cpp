@@ -10,7 +10,7 @@ namespace distributed_db
           message_id(message_id), payload_size(payload_size)
     {
         const auto now = std::chrono::system_clock::now();
-        timestamp = std::chrono::duration_cast<std::chrono::millisecond>(now.time_since_epoch()).count();
+        timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
     }
 
     bool MessageHeader::isValid() const noexcept
@@ -23,6 +23,11 @@ namespace distributed_db
 
     Message::Message(MessageType type, std::uint32_t message_id)
         : _header(type, message_id, 0) {}
+
+    Message::~Message()
+    {
+        LOG_DEBUG("Destroying message type: %d", static_cast<int>(_header.type));
+    }
 
     std::uint32_t Message::generateMessageId() noexcept
     {
@@ -358,7 +363,7 @@ namespace distributed_db
             return header_status;
         }
 
-        if (data.size() < MessageHeader::HEADER_SIZE + header_.payload_size)
+        if (data.size() < MessageHeader::HEADER_SIZE + _header.payload_size)
         {
             return Status::INVALID_REQUEST;
         }
@@ -472,7 +477,7 @@ namespace distributed_db
         }
 
         std::size_t offset = MessageHeader::HEADER_SIZE;
-        return deserializeString(data, offset, node_id);
+        return deserializeString(data, offset, _node_id);
     }
 
     Result<std::vector<std::uint8_t>> ErrorResponseMessage::serialize() const

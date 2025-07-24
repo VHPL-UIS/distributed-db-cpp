@@ -33,18 +33,18 @@ namespace distributed_db
         Connection(Connection &&) = default;
         Connection &operator=(Connection &&) = default;
 
-        [[nodiscard]] socket_t getSocket() const noexcept { return _socket; }
-        [[nodiscard]] const std::string &getRemoteAddress() const noexcept { return _remote_address; }
-        [[nodiscard]] std::uint64_t getConnectionId() const noexcept { return _connection_id; }
-        [[nodiscard]] Timestamp getConnectedAt() const noexcept { return _connected_at; }
+        socket_t getSocket() const noexcept { return _socket; }
+        const std::string &getRemoteAddress() const noexcept { return _remote_address; }
+        std::uint64_t getConnectionId() const noexcept { return _connection_id; }
+        Timestamp getConnectedAt() const noexcept { return _connected_at; }
 
-        [[nodiscard]] Status sendMessage(const Message &message);
+        Status sendMessage(const Message &message);
 
-        [[nodiscard]] Result<std::unique_ptr<Message>> receiveMessage();
+        Result<std::unique_ptr<Message>> receiveMessage();
 
         void close();
 
-        [[nodiscard]] bool isConnected() const noexcept { return _connected; }
+        bool isConnected() const noexcept { return _connected; }
 
     private:
         socket_t _socket;
@@ -56,9 +56,9 @@ namespace distributed_db
 
         static std::atomic<std::uint64_t> _next_connection_id;
 
-        [[nodiscard]] Status sendBytes(const std::vector<std::uint8_t> &data);
-        [[nodiscard]] Result<std::vector<std::uint8_t>> receiveBytes(std::size_t size);
-        [[nodiscard]] Result<std::vector<std::uint8_t>> receiveExactBytes(std::size_t size);
+        Status sendBytes(const std::vector<std::uint8_t> &data);
+        Result<std::vector<std::uint8_t>> receiveBytes(std::size_t size);
+        Result<std::vector<std::uint8_t>> receiveExactBytes(std::size_t size);
     };
 
     using MessageHandler = std::function<std::unique_ptr<Message>(const Message &, const Connection &)>;
@@ -75,17 +75,17 @@ namespace distributed_db
         TcpServer(TcpServer &&) = default;
         TcpServer &operator=(TcpServer &&) = default;
 
-        [[nodiscard]] Status start();
+        Status start();
         void stop();
-        [[nodiscard]] bool isRunning() const noexcept { return _running; }
+        bool isRunning() const noexcept { return _running; }
 
         void setMessageHandler(MessageHandler handler) { _message_handler = std::move(handler); }
         void setStorageEngine(std::shared_ptr<StorageEngine> storage) { _storage_engine = std::move(storage); }
 
-        [[nodiscard]] Port getPort() const noexcept { return _port; }
-        [[nodiscard]] const std::string &getBindAddress() const noexcept { return _bind_address; }
-        [[nodiscard]] std::size_t getConnectionCount() const;
-        [[nodiscard]] std::vector<std::uint64_t> getActiveConnections() const;
+        Port getPort() const noexcept { return _port; }
+        const std::string &getBindAddress() const noexcept { return _bind_address; }
+        std::size_t getConnectionCount() const;
+        std::vector<std::uint64_t> getActiveConnections() const;
 
         void setMaxConnections(std::size_t max_connections) noexcept { _max_connections = max_connections; }
         void setReceiveTimeout(std::chrono::milliseconds timeout) noexcept { _receive_timeout = timeout; }
@@ -109,31 +109,31 @@ namespace distributed_db
         MessageHandler _message_handler;
         std::shared_ptr<StorageEngine> _storage_engine;
 
-        [[nodiscard]] Status initializeSocket();
+        Status initializeSocket();
         void acceptLoop();
         void handleConnection(std::unique_ptr<Connection> connection);
         void processMessage(const std::unique_ptr<Message> &request, Connection &connection);
         void cleanupConnections();
 
-        [[nodiscard]] std::unique_ptr<Message> handleGetRequest(const GetRequestMessage &request);
-        [[nodiscard]] std::unique_ptr<Message> handlePutRequest(const PutRequestMessage &request);
-        [[nodiscard]] std::unique_ptr<Message> handleDeleteRequest(const DeleteRequestMessage &request);
-        [[nodiscard]] std::unique_ptr<Message> handleHeartbeat(const HeartbeatMessage &request);
+        std::unique_ptr<Message> handleGetRequest(const GetRequestMessage &request);
+        std::unique_ptr<Message> handlePutRequest(const PutRequestMessage &request);
+        std::unique_ptr<Message> handleDeleteRequest(const DeleteRequestMessage &request);
+        std::unique_ptr<Message> handleHeartbeat(const HeartbeatMessage &request);
 
-        [[nodiscard]] std::string getSocketAddress(socket_t socket) const;
+        std::string getSocketAddress(socket_t socket) const;
         void closeSocket(socket_t socket);
 
-        [[nodiscard]] Status setSocketOptions(socket_t socket);
-        [[nodiscard]] Status setNonBlocking(socket_t socket, bool non_blocking);
+        Status setSocketOptions(socket_t socket);
+        Status setNonBlocking(socket_t socket, bool non_blocking);
     };
 
     namespace socket_utils
     {
-        [[nodiscard]] Status initializeNetworking();
+        Status initializeNetworking();
         void cleanupNetworking();
-        [[nodiscard]] std::string getLastSocketError();
-        [[nodiscard]] bool isSocketValid(socket_t socket);
-        [[nodiscard]] Status closeSocket(socket_t socket);
+        std::string getLastSocketError();
+        bool isSocketValid(socket_t socket);
+        Status closeSocket(socket_t socket);
     }
 } // distributed_db
 

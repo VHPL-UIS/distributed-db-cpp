@@ -5,6 +5,7 @@
 #include "message.hpp"
 #include <future>
 #include <memory>
+#include <unordered_map>
 
 #ifdef _WIN32
 using socket_t = uintptr_t;
@@ -38,31 +39,31 @@ namespace distributed_db
         TcpClient &operator=(TcpClient &&) = default;
 
         // Connection management
-        [[nodiscard]] Status connect(const std::string &host, Port port);
+        Status connect(const std::string &host, Port port);
         void disconnect();
-        [[nodiscard]] bool isConnected() const noexcept { return _connected; }
+        bool isConnected() const noexcept { return _connected; }
 
         // Synchronous operations
-        [[nodiscard]] Result<std::unique_ptr<Message>> sendRequest(const Message &request);
-        [[nodiscard]] Result<std::unique_ptr<Message>> sendRequest(const Message &request,
-                                                                   std::chrono::milliseconds timeout);
+        Result<std::unique_ptr<Message>> sendRequest(const Message &request);
+        Result<std::unique_ptr<Message>> sendRequest(const Message &request,
+                                                     std::chrono::milliseconds timeout);
 
         // Asynchronous operations
-        [[nodiscard]] std::future<std::unique_ptr<Message>> sendRequestAsync(const Message &request);
-        [[nodiscard]] std::future<std::unique_ptr<Message>> sendRequestAsync(const Message &request,
-                                                                             std::chrono::milliseconds timeout);
+        std::future<std::unique_ptr<Message>> sendRequestAsync(const Message &request);
+        std::future<std::unique_ptr<Message>> sendRequestAsync(const Message &request,
+                                                               std::chrono::milliseconds timeout);
 
         // High-level database operations
-        [[nodiscard]] Result<Value> get(const Key &key);
-        [[nodiscard]] Result<Value> get(const Key &key, std::chrono::milliseconds timeout);
-        [[nodiscard]] Status put(const Key &key, const Value &value);
-        [[nodiscard]] Status put(const Key &key, const Value &value, std::chrono::milliseconds timeout);
-        [[nodiscard]] Status remove(const Key &key);
-        [[nodiscard]] Status remove(const Key &key, std::chrono::milliseconds timeout);
+        Result<Value> get(const Key &key);
+        Result<Value> get(const Key &key, std::chrono::milliseconds timeout);
+        Status put(const Key &key, const Value &value);
+        Status put(const Key &key, const Value &value, std::chrono::milliseconds timeout);
+        Status remove(const Key &key);
+        Status remove(const Key &key, std::chrono::milliseconds timeout);
 
         // Heartbeat/ping
-        [[nodiscard]] Status ping();
-        [[nodiscard]] Status ping(std::chrono::milliseconds timeout);
+        Status ping();
+        Status ping(std::chrono::milliseconds timeout);
 
         // Configuration
         void setDefaultTimeout(std::chrono::milliseconds timeout) noexcept { _default_timeout = timeout; }
@@ -71,9 +72,9 @@ namespace distributed_db
         void setRetryDelay(std::chrono::milliseconds delay) noexcept { _retry_delay = delay; }
 
         // Connection info
-        [[nodiscard]] const std::string &getHost() const noexcept { return _host; }
-        [[nodiscard]] Port getPort() const noexcept { return _port; }
-        [[nodiscard]] std::chrono::milliseconds getDefaultTimeout() const noexcept { return _default_timeout; }
+        const std::string &getHost() const noexcept { return _host; }
+        Port getPort() const noexcept { return _port; }
+        std::chrono::milliseconds getDefaultTimeout() const noexcept { return _default_timeout; }
 
     private:
         socket_t _socket;
@@ -93,25 +94,25 @@ namespace distributed_db
         int _retry_count;
         std::chrono::milliseconds _retry_delay;
 
-        [[nodiscard]] Status initializeSocket();
+        Status initializeSocket();
         void receiveLoop();
         void handleResponse(std::unique_ptr<Message> response);
         void cleanupPendingRequests();
         void timeoutExpiredRequests();
 
-        [[nodiscard]] Status sendMessage(const Message &message);
-        [[nodiscard]] Result<std::unique_ptr<Message>> receiveMessage();
-        [[nodiscard]] Status sendBytes(const std::vector<std::uint8_t> &data);
-        [[nodiscard]] Result<std::vector<std::uint8_t>> receiveBytes(std::size_t size);
-        [[nodiscard]] Result<std::vector<std::uint8_t>> receiveExactBytes(std::size_t size);
+        Status sendMessage(const Message &message);
+        Result<std::unique_ptr<Message>> receiveMessage();
+        Status sendBytes(const std::vector<std::uint8_t> &data);
+        Result<std::vector<std::uint8_t>> receiveBytes(std::size_t size);
+        Result<std::vector<std::uint8_t>> receiveExactBytes(std::size_t size);
 
-        [[nodiscard]] std::uint32_t generateMessageId();
-        [[nodiscard]] Status connectWithRetry(const std::string &host, Port port);
+        std::uint32_t generateMessageId();
+        Status connectWithRetry(const std::string &host, Port port);
         void closeSocket();
 
         template <typename RequestType, typename ResponseType>
-        [[nodiscard]] Result<ResponseType> performRequest(const RequestType &request,
-                                                          std::chrono::milliseconds timeout);
+        Result<ResponseType> performRequest(const RequestType &request,
+                                            std::chrono::milliseconds timeout);
     };
 
     class ConnectionPool
@@ -125,19 +126,19 @@ namespace distributed_db
         ConnectionPool(ConnectionPool &&) = default;
         ConnectionPool &operator=(ConnectionPool &&) = default;
 
-        [[nodiscard]] Status addServer(const std::string &host, Port port);
+        Status addServer(const std::string &host, Port port);
         void removeServer(const std::string &host, Port port);
         void clear();
 
-        [[nodiscard]] Result<Value> get(const Key &key);
-        [[nodiscard]] Status put(const Key &key, const Value &value);
-        [[nodiscard]] Status remove(const Key &key);
+        Result<Value> get(const Key &key);
+        Status put(const Key &key, const Value &value);
+        Status remove(const Key &key);
 
         void setDefaultTimeout(std::chrono::milliseconds timeout);
         void setMaxConnections(std::size_t max_connections) { _max_connections = max_connections; }
 
-        [[nodiscard]] std::size_t getActiveConnections() const;
-        [[nodiscard]] std::size_t getTotalServers() const;
+        std::size_t getActiveConnections() const;
+        std::size_t getTotalServers() const;
 
     private:
         struct ServerInfo
@@ -155,9 +156,9 @@ namespace distributed_db
         std::size_t _max_connections;
         std::chrono::milliseconds _default_timeout;
 
-        [[nodiscard]] TcpClient *getConnection();
+        TcpClient *getConnection();
         void returnConnection(TcpClient *client);
-        [[nodiscard]] TcpClient *createConnection(ServerInfo &server);
+        TcpClient *createConnection(ServerInfo &server);
     };
 } // distributed_db
 

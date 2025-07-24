@@ -3,6 +3,7 @@
 
 #include "../common/types.hpp"
 #include <vector>
+#include <memory>
 
 namespace distributed_db
 {
@@ -68,7 +69,7 @@ namespace distributed_db
         Message() = default;
         explicit Message(MessageType type);
         Message(MessageType type, std::uint32_t message_id);
-        virtual ~Message() = default;
+        virtual ~Message();
 
         Message(const Message &) = delete;
         Message &operator=(const Message &) = delete;
@@ -144,7 +145,7 @@ namespace distributed_db
     public:
         PutRequestMessage() : Message(MessageType::PUT_REQUEST) {}
         PutRequestMessage(Key key, Value value)
-            : Message(MessageType::PUT_REQUEST), key_(std::move(key)), value_(std::move(value)) {}
+            : Message(MessageType::PUT_REQUEST), _key(std::move(key)), _value(std::move(value)) {}
 
         [[nodiscard]] const Key &getKey() const noexcept { return _key; }
         [[nodiscard]] const Value &getValue() const noexcept { return _value; }
@@ -262,7 +263,7 @@ namespace distributed_db
         [[nodiscard]] Status deserialize(const std::vector<std::uint8_t> &data) override;
 
     private:
-        Status error_status_ = Status::INTERNAL_ERROR;
+        Status _error_status = Status::INTERNAL_ERROR;
         std::string _error_message;
     };
 

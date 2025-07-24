@@ -167,24 +167,37 @@ namespace distributed_db
 
     void PersistentStorageEngine::clear()
     {
-        const auto checkpoint_status = _wal->logCheckpoint();
-        if (checkpoint_status != Status::OK)
-        {
-            LOG_WARN("Failed to log checkpoint before clear, but continuing");
-        }
-
+        // Clear in-memory data first
         {
             const std::unique_lock lock(_mutex);
             _data.clear();
         }
 
+        // Create a checkpoint to mark the clear point
+        const auto checkpoint_status = _wal->logCheckpoint();
+        if (checkpoint_status != Status::OK)
+        {
+            LOG_WARN("Failed to log checkpoint for clear");
+        }
+
+        // Update checkpoint sequence BEFORE saving snapshot
+        _last_checkpoint_sequence = _wal->getCurrentSequenceNumber();
+
+        // Save empty snapshot with the updated checkpoint sequence
         const auto snapshot_status = saveSnapshot();
         if (snapshot_status != Status::OK)
         {
-            LOG_WARN("Failed to save snapshot after clear");
+            LOG_WARN("Failed to save empty snapshot after clear");
         }
 
-        LOG_DEBUG("Cleared all data");
+        // Now truncate everything - this should leave an empty WAL
+        const auto truncate_status = _wal->truncateUpTo(_last_checkpoint_sequence);
+        if (truncate_status != Status::OK)
+        {
+            LOG_WARN("Failed to truncate WAL after clear");
+        }
+
+        LOG_DEBUG("Cleared all data, checkpoint sequence: %lu", _last_checkpoint_sequence);
     }
 
     Status PersistentStorageEngine::flush()

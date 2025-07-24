@@ -42,20 +42,20 @@ namespace distributed_db
         WriteAheadLog(WriteAheadLog &&) = default;
         WriteAheadLog &operator=(WriteAheadLog &&) = default;
 
-        [[nodiscard]] Status logPut(const Key &key, const Value &value);
-        [[nodiscard]] Status logDelete(const Key &key);
-        [[nodiscard]] Status logCheckpoint();
-        [[nodiscard]] Status flush();
+        Status logPut(const Key &key, const Value &value);
+        Status logDelete(const Key &key);
+        Status logCheckpoint();
+        Status flush();
 
-        [[nodiscard]] Result<std::vector<WalEntry>> getAllEntries() const;
-        [[nodiscard]] Result<std::vector<WalEntry>> getEntriesSinceSequence(std::uint64_t sequence) const;
+        Result<std::vector<WalEntry>> getAllEntries() const;
+        Result<std::vector<WalEntry>> getEntriesSinceSequence(std::uint64_t sequence) const;
 
-        [[nodiscard]] Status truncateUpTo(std::uint64_t sequence_number);
-        [[nodiscard]] Status createCheckpoint();
+        Status truncateUpTo(std::uint64_t sequence_number);
+        Status createCheckpoint();
 
-        [[nodiscard]] std::uint64_t getCurrentSequenceNumber() const noexcept;
-        [[nodiscard]] std::size_t getEntryCount() const;
-        [[nodiscard]] const std::filesystem::path &getWalPath() const noexcept;
+        std::uint64_t getCurrentSequenceNumber() const noexcept;
+        std::size_t getEntryCount() const;
+        const std::filesystem::path &getWalPath() const noexcept;
 
     private:
         std::filesystem::path _wal_directory;
@@ -69,17 +69,17 @@ namespace distributed_db
         static constexpr std::uint32_t WAL_MAGIC_NUMBER = 0xDEADBEEF;
         static constexpr std::uint8_t WAL_VERSION = 1;
 
-        [[nodiscard]] bool initializeWalFile();
-        [[nodiscard]] Status writeEntry(const WalEntry &entry);
-        [[nodiscard]] Status writeHeader();
-        [[nodiscard]] Result<WalEntry> readNextEntry(std::ifstream &file) const;
-        [[nodiscard]] Status validateWalFile() const;
+        bool initializeWalFile();
+        Status writeEntry(const WalEntry &entry);
+        Status writeHeader();
+        Result<WalEntry> readNextEntry(std::ifstream &file) const;
+        Status validateWalFile() const;
 
-        [[nodiscard]] Status serializeEntry(const WalEntry &entry, std::vector<std::uint8_t> &buffer) const;
-        [[nodiscard]] Result<WalEntry> deserializeEntry(const std::vector<std::uint8_t> &buffer) const;
+        Status serializeEntry(const WalEntry &entry, std::vector<std::uint8_t> &buffer) const;
+        Result<WalEntry> deserializeEntry(const std::vector<std::uint8_t> &buffer) const;
 
-        [[nodiscard]] std::uint64_t getNextSequenceNumber() noexcept;
-        [[nodiscard]] std::filesystem::path generateWalFileName() const;
+        std::uint64_t getNextSequenceNumber() noexcept;
+        std::filesystem::path generateWalFileName() const;
     };
 } // namespace distributed_db
 

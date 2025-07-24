@@ -16,8 +16,16 @@ endif()
 add_executable(test_distributed_db
     unit/test_storage_engine.cpp
     unit/test_config.cpp
+    unit/test_wal.cpp
+    unit/test_persistent_storage.cpp
+    unit/test_message.cpp
     ../src/common/config.cpp
     ../src/storage/storage_engine.cpp
+    ../src/storage/wal.cpp
+    ../src/storage/persistent_storage_engine.cpp
+    ../src/network/message.cpp
+    ../src/network/tcp_server.cpp
+    ../src/network/tcp_client.cpp
 )
 
 # Link libraries

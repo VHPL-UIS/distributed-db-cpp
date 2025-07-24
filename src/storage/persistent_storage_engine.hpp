@@ -29,17 +29,17 @@ namespace distributed_db
         Status putBatch(const std::unordered_map<Key, Value> &batch) override;
         Result<std::unordered_map<Key, Value>> getBatch(const std::vector<Key> &keys) override;
 
-        [[nodiscard]] std::size_t size() const override;
-        [[nodiscard]] std::vector<Key> getAllKeys() const override;
+        std::size_t size() const override;
+        std::vector<Key> getAllKeys() const override;
         void clear() override;
 
-        [[nodiscard]] Status flush();
-        [[nodiscard]] Status checkpoint();
-        [[nodiscard]] Status recover();
+        Status flush();
+        Status checkpoint();
+        Status recover();
 
-        [[nodiscard]] std::size_t getWalEntryCount() const;
-        [[nodiscard]] std::uint64_t getCurrentWalSequence() const;
-        [[nodiscard]] const std::filesystem::path &getDataDirectory() const noexcept;
+        std::size_t getWalEntryCount() const;
+        std::uint64_t getCurrentWalSequence() const;
+        const std::filesystem::path &getDataDirectory() const noexcept;
 
     private:
         std::filesystem::path _data_directory;
@@ -54,21 +54,21 @@ namespace distributed_db
         static constexpr std::uint32_t SNAPSHOT_MAGIC_NUMBER = 0xCAFEBABE;
         static constexpr std::uint8_t SNAPSHOT_VERSION = 1;
 
-        [[nodiscard]] bool initializeDataDirectory();
-        [[nodiscard]] Status loadSnapshot();
-        [[nodiscard]] Status saveSnapshot();
-        [[nodiscard]] Status replayWalEntries();
+        bool initializeDataDirectory();
+        Status loadSnapshot();
+        Status saveSnapshot();
+        Status replayWalEntries();
 
-        [[nodiscard]] Status serializeSnapshot(std::ofstream &file) const;
-        [[nodiscard]] Status deserializeSnapshot(std::ifstream &file);
+        Status serializeSnapshot(std::ofstream &file) const;
+        Status deserializeSnapshot(std::ifstream &file);
 
-        [[nodiscard]] bool snapshotExists() const;
-        [[nodiscard]] std::filesystem::path getSnapshotPath() const;
+        bool snapshotExists() const;
+        std::filesystem::path getSnapshotPath() const;
 
         void applyWalEntry(const WalEntry &entry);
 
-        [[nodiscard]] Status validateSnapshot() const;
-        [[nodiscard]] bool isValidSnapshotFile(const std::filesystem::path &path) const;
+        Status validateSnapshot() const;
+        bool isValidSnapshotFile(const std::filesystem::path &path) const;
     };
 } // namespace distributed_db
 

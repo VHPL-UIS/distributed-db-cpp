@@ -5,6 +5,9 @@ add_executable(distributed_db
     storage/storage_engine.cpp
     storage/wal.cpp
     storage/persistent_storage_engine.cpp
+    network/message.cpp
+    network/tcp_server.cpp
+    network/tcp_client.cpp
 )
 
 # Link libraries

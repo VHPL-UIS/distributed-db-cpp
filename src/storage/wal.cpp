@@ -237,6 +237,13 @@ namespace distributed_db
             }
         }
 
+        _wal_file->flush();
+        if (_wal_file->fail())
+        {
+            LOG_ERROR("Failed to flush WAL file after truncation");
+            return Status::INTERNAL_ERROR;
+        }
+
         _entries_since_checkpoint = entries_to_keep.size();
 
         LOG_INFO("WAL truncated, keeping %zu entries after sequence %lu!", entries_to_keep.size(), sequence_number);
