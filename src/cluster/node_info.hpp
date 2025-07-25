@@ -7,6 +7,10 @@
 #include <unordered_map>
 #include <atomic>
 #include <mutex>
+#include <vector>
+#include <memory>
+#include <shared_mutex>
+#include <functional>
 
 namespace distributed_db
 {

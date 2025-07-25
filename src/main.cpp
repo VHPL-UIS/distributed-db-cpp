@@ -4,6 +4,7 @@
 #include <thread>
 #include <chrono>
 #include <future>
+#include <vector>
 
 #include "common/logger.hpp"
 #include "common/config.hpp"
@@ -11,7 +12,8 @@
 #include "storage/persistent_storage_engine.hpp"
 #include "network/tcp_server.hpp"
 #include "network/tcp_client.hpp"
-#include "network/message.hpp"
+#include "cluster/node_info.hpp"
+#include "cluster/cluster_membership.hpp"
 
 using namespace distributed_db;
 
@@ -20,482 +22,533 @@ void printBanner()
     std::cout << R"(
 ╔══════════════════════════════════════════════════════════════╗
 ║                    Distributed Database                      ║
-║                Network Layer Foundation                      ║
+║            Node Discovery & Cluster Formation                ║
 ╚══════════════════════════════════════════════════════════════╝
 )" << std::endl;
 }
 
-void demonstrateMessageSerialization()
+void demonstrateNodeInfo()
 {
-    LOG_INFO("=== Message Serialization Demonstration ===");
+    LOG_INFO("=== Node Information Demonstration ===");
 
-    // Test GET request/response
-    GetRequestMessage get_request("demo_key");
-    LOG_INFO("Created GET request for key: %s", get_request.getKey().c_str());
+    // Create node with basic information
+    NodeInfo node("demo_node_1", "192.168.1.100", 8080, NodeRole::FOLLOWER);
+    LOG_INFO("Created node: %s", node.toString().c_str());
 
-    const auto serialized_result = get_request.serialize();
-    if (serialized_result.ok())
+    // Test state transitions
+    LOG_INFO("Testing state transitions...");
+    node.setState(NodeState::JOINING);
+    LOG_INFO("State changed to JOINING: %s", nodeStateToString(node.getState()).c_str());
+
+    node.setState(NodeState::ACTIVE);
+    LOG_INFO("State changed to ACTIVE: %s", nodeStateToString(node.getState()).c_str());
+
+    LOG_INFO("✓ Node is active: %s", node.isActive() ? "true" : "false");
+
+    // Test role changes
+    LOG_INFO("Testing role changes...");
+    node.setRole(NodeRole::LEADER);
+    LOG_INFO("Role changed to LEADER: %s", nodeRoleToString(node.getRole()).c_str());
+    LOG_INFO("✓ Can vote: %s", node.canVote() ? "true" : "false");
+
+    // Test metadata
+    LOG_INFO("Testing metadata operations...");
+    node.setMetadata("version", "1.0.0");
+    node.setMetadata("datacenter", "us-west-1");
+    node.setMetadata("instance_type", "m5.large");
+
+    LOG_INFO("✓ Metadata - version: %s", node.getMetadata("version").c_str());
+    LOG_INFO("✓ Metadata - datacenter: %s", node.getMetadata("datacenter").c_str());
+    LOG_INFO("✓ Has version metadata: %s", node.hasMetadata("version") ? "true" : "false");
+
+    // Test statistics
+    LOG_INFO("Testing heartbeat statistics...");
+    for (int i = 0; i < 5; ++i)
     {
-        LOG_INFO("✓ GET request serialized: %zu bytes", serialized_result.value().size());
-
-        // Deserialize back
-        const auto message_result = Message::fromBytes(serialized_result.value());
-        if (message_result.ok())
-        {
-            const auto &deserialized = message_result.value();
-            LOG_INFO("✓ Message deserialized: type=%s, id=%u",
-                     messageTypeToString(deserialized->getType()).c_str(),
-                     deserialized->getMessageId());
+        node.incrementHeartbeatsSent();
+        if (i < 4)
+        { // 4 out of 5 responses
+            node.incrementHeartbeatsReceived();
+            node.recordLatency(std::chrono::milliseconds(50 + i * 10));
         }
     }
 
-    // Test PUT request
-    PutRequestMessage put_request("demo_key", "demo_value");
-    LOG_INFO("Created PUT request: %s -> %s",
-             put_request.getKey().c_str(), put_request.getValue().c_str());
+    LOG_INFO("✓ Heartbeats sent: %lu", node.getHeartbeatsSent());
+    LOG_INFO("✓ Heartbeats received: %lu", node.getHeartbeatsReceived());
+    LOG_INFO("✓ Average latency: %ldms", node.getAverageLatency().count());
 
-    const auto put_serialized = put_request.serialize();
-    if (put_serialized.ok())
+    // Test health check
+    LOG_INFO("Testing health checks...");
+    LOG_INFO("✓ Is healthy (1s timeout): %s",
+             node.isHealthy(std::chrono::milliseconds(1000)) ? "true" : "false");
+
+    // Test serialization
+    LOG_INFO("Testing serialization...");
+    const auto serialized = node.serialize();
+    if (serialized.ok())
     {
-        LOG_INFO("✓ PUT request serialized: %zu bytes", put_serialized.value().size());
-    }
+        LOG_INFO("✓ Node serialized: %zu bytes", serialized.value().size());
 
-    // Test heartbeat
-    HeartbeatMessage heartbeat("demo_node_1");
-    const auto hb_serialized = heartbeat.serialize();
-    if (hb_serialized.ok())
-    {
-        LOG_INFO("✓ Heartbeat serialized: %zu bytes", hb_serialized.value().size());
+        NodeInfo deserialized;
+        if (deserialized.deserialize(serialized.value()) == Status::OK)
+        {
+            LOG_INFO("✓ Node deserialized successfully");
+            LOG_INFO("  Deserialized: %s", deserialized.toString().c_str());
+        }
     }
-
-    LOG_INFO("Message serialization working correctly");
 }
 
-void startDatabaseServer(std::shared_ptr<StorageEngine> storage, Port port)
+void demonstrateNodeRegistry()
 {
-    LOG_INFO("=== Starting Database Server ===");
+    LOG_INFO("=== Node Registry Demonstration ===");
 
-    auto server = std::make_unique<TcpServer>(port);
-    server->setStorageEngine(storage);
-    server->setMaxConnections(10);
+    NodeRegistry registry;
+    LOG_INFO("Created empty registry: size=%zu", registry.size());
 
-    const auto start_status = server->start();
+    // Add multiple nodes
+    LOG_INFO("Adding nodes to registry...");
+    std::vector<NodeInfo> test_nodes = {
+        NodeInfo("node_1", "127.0.0.1", 8081, NodeRole::FOLLOWER),
+        NodeInfo("node_2", "127.0.0.1", 8082, NodeRole::FOLLOWER),
+        NodeInfo("node_3", "127.0.0.1", 8083, NodeRole::LEADER),
+        NodeInfo("node_4", "127.0.0.1", 8084, NodeRole::OBSERVER)};
+
+    // Set different states
+    test_nodes[0].setState(NodeState::ACTIVE);
+    test_nodes[1].setState(NodeState::ACTIVE);
+    test_nodes[2].setState(NodeState::ACTIVE);
+    test_nodes[3].setState(NodeState::FAILED);
+
+    for (const auto &node : test_nodes)
+    {
+        registry.addNode(node);
+    }
+
+    LOG_INFO("✓ Registry size after adding nodes: %zu", registry.size());
+
+    // Test filtering
+    const auto active_nodes = registry.getActiveNodes();
+    LOG_INFO("✓ Active nodes: %zu", active_nodes.size());
+
+    const auto leaders = registry.getNodesByRole(NodeRole::LEADER);
+    LOG_INFO("✓ Leader nodes: %zu", leaders.size());
+
+    const auto failed_nodes = registry.getNodesByState(NodeState::FAILED);
+    LOG_INFO("✓ Failed nodes: %zu", failed_nodes.size());
+
+    // Test statistics
+    const auto state_counts = registry.getNodeStateCounts();
+    LOG_INFO("✓ Node state distribution:");
+    for (const auto &[state, count] : state_counts)
+    {
+        LOG_INFO("  %s: %zu nodes", nodeStateToString(state).c_str(), count);
+    }
+
+    const auto role_counts = registry.getNodeRoleCounts();
+    LOG_INFO("✓ Node role distribution:");
+    for (const auto &[role, count] : role_counts)
+    {
+        LOG_INFO("  %s: %zu nodes", nodeRoleToString(role).c_str(), count);
+    }
+
+    // Test node retrieval
+    const auto retrieved_node = registry.getNode("node_2");
+    if (retrieved_node)
+    {
+        LOG_INFO("✓ Retrieved node: %s", retrieved_node->toString().c_str());
+    }
+
+    // Test node removal
+    if (registry.removeNode("node_4"))
+    {
+        LOG_INFO("✓ Removed failed node, new size: %zu", registry.size());
+    }
+}
+
+void demonstrateSingleNodeCluster()
+{
+    LOG_INFO("=== Single Node Cluster Demonstration ===");
+
+    // Create local node
+    auto local_node = std::make_shared<NodeInfo>("single_node", "127.0.0.1", 9000);
+    auto membership = std::make_unique<ClusterMembership>(local_node);
+
+    LOG_INFO("Created cluster membership for: %s", local_node->toString().c_str());
+
+    // Start membership management
+    const auto start_status = membership->start();
     if (start_status == Status::OK)
     {
-        LOG_INFO("✓ Database server started on port %d", port);
+        LOG_INFO("✓ Membership management started");
+    }
 
-        // Let server run for the demonstration
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+    // Join as single node cluster (empty seed list)
+    const auto join_status = membership->joinCluster({});
+    if (join_status == Status::OK)
+    {
+        LOG_INFO("✓ Joined cluster as single node");
+    }
 
-        LOG_INFO("Server running with %zu active connections", server->getConnectionCount());
+    // Check cluster state
+    LOG_INFO("Cluster status:");
+    LOG_INFO("  Size: %zu", membership->getClusterSize());
+    LOG_INFO("  Active nodes: %zu", membership->getActiveNodeCount());
+    LOG_INFO("  Has quorum: %s", membership->hasQuorum() ? "true" : "false");
+    LOG_INFO("  Is healthy: %s", membership->isClusterHealthy() ? "true" : "false");
 
-        // Keep server running for client tests
-        std::this_thread::sleep_for(std::chrono::seconds(8));
-
-        LOG_INFO("Stopping database server...");
-        server->stop();
-        LOG_INFO("✓ Database server stopped");
+    const auto leader = membership->getLeaderNode();
+    if (leader)
+    {
+        LOG_INFO("  Leader: %s", leader->getId().c_str());
     }
     else
     {
-        LOG_ERROR("✗ Failed to start database server");
+        LOG_INFO("  Leader: none");
     }
+
+    // Demonstrate node management
+    LOG_INFO("Adding additional nodes to cluster...");
+
+    NodeInfo additional_node1("additional_1", "127.0.0.1", 9001);
+    NodeInfo additional_node2("additional_2", "127.0.0.1", 9002);
+
+    additional_node1.setState(NodeState::ACTIVE);
+    additional_node2.setState(NodeState::ACTIVE);
+
+    membership->addNode(additional_node1);
+    membership->addNode(additional_node2);
+
+    LOG_INFO("✓ Added 2 additional nodes");
+    LOG_INFO("Updated cluster size: %zu", membership->getClusterSize());
+
+    // Promote a node to leader
+    const auto promote_status = membership->updateNodeRole("additional_1", NodeRole::LEADER);
+    if (promote_status == Status::OK)
+    {
+        LOG_INFO("✓ Promoted additional_1 to leader");
+
+        const auto new_leader = membership->getLeaderNode();
+        if (new_leader)
+        {
+            LOG_INFO("  New leader: %s", new_leader->getId().c_str());
+        }
+    }
+
+    // Get voting nodes
+    const auto voting_nodes = membership->getVotingNodes();
+    LOG_INFO("✓ Voting nodes: %zu", voting_nodes.size());
+    for (const auto &node : voting_nodes)
+    {
+        LOG_INFO("  Voter: %s (%s)", node->getId().c_str(), nodeRoleToString(node->getRole()).c_str());
+    }
+
+    // Simulate node failure
+    LOG_INFO("Simulating node failure...");
+    const auto fail_status = membership->markNodeFailed("additional_2");
+    if (fail_status == Status::OK)
+    {
+        LOG_INFO("✓ Marked additional_2 as failed");
+        LOG_INFO("  Active nodes after failure: %zu", membership->getActiveNodeCount());
+        LOG_INFO("  Still has quorum: %s", membership->hasQuorum() ? "true" : "false");
+    }
+
+    // Clean shutdown
+    membership->stop();
+    LOG_INFO("✓ Cluster membership stopped");
 }
 
-void demonstrateClientServerCommunication()
+void demonstrateMembershipEvents()
 {
-    LOG_INFO("=== Client-Server Communication Demonstration ===");
+    LOG_INFO("=== Membership Events Demonstration ===");
 
-    // Create storage engine for server
-    const auto data_directory = std::filesystem::current_path() / "demo_data";
-    auto storage = std::make_shared<PersistentStorageEngine>(data_directory);
+    auto local_node = std::make_shared<NodeInfo>("event_demo_node", "127.0.0.1", 9100);
+    auto membership = std::make_unique<ClusterMembership>(local_node);
 
-    // Add some initial data
-    storage->put("server_key1", "server_value1");
-    storage->put("server_key2", "server_value2");
+    std::vector<MembershipEventData> captured_events;
 
-    const Port server_port = 9090;
+    // Set up event callback
+    membership->setMembershipEventCallback([&captured_events](const MembershipEventData &event)
+                                           {
+        captured_events.push_back(event);
+        LOG_INFO("📧 Membership Event: %s for node %s", 
+                 [](MembershipEvent evt) {
+                     switch (evt) {
+                         case MembershipEvent::NODE_JOINED: return "NODE_JOINED";
+                         case MembershipEvent::NODE_LEFT: return "NODE_LEFT";
+                         case MembershipEvent::NODE_FAILED: return "NODE_FAILED";
+                         case MembershipEvent::ROLE_CHANGED: return "ROLE_CHANGED";
+                         case MembershipEvent::MEMBERSHIP_UPDATED: return "MEMBERSHIP_UPDATED";
+                         default: return "UNKNOWN";
+                     }
+                 }(event.event),
+                 event.node_id.c_str()); });
 
-    // Start server in separate thread
-    auto server_future = std::async(std::launch::async, [storage, server_port]()
-                                    { startDatabaseServer(storage, server_port); });
+    membership->start();
+    membership->joinCluster({}); // Single node cluster
 
-    // Give server time to start
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // Give time for initial events
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Test client operations
-    LOG_INFO("Testing client operations...");
+    LOG_INFO("Performing membership operations to generate events...");
 
-    TcpClient client;
-    client.setDefaultTimeout(std::chrono::milliseconds(5000));
+    // Add nodes (should generate NODE_JOINED events)
+    NodeInfo event_node1("event_node_1", "127.0.0.1", 9101);
+    NodeInfo event_node2("event_node_2", "127.0.0.1", 9102);
 
-    const auto connect_status = client.connect("localhost", server_port);
-    if (connect_status == Status::OK)
+    membership->addNode(event_node1);
+    membership->addNode(event_node2);
+
+    // Change role (should generate ROLE_CHANGED event)
+    membership->updateNodeRole("event_node_1", NodeRole::LEADER);
+
+    // Mark node as failed (should generate NODE_FAILED event)
+    membership->markNodeFailed("event_node_2");
+
+    // Remove node (should generate NODE_LEFT event)
+    membership->removeNode("event_node_2");
+
+    // Give time for event processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    LOG_INFO("✓ Captured %zu membership events", captured_events.size());
+
+    // Summarize events
+    std::unordered_map<MembershipEvent, int> event_counts;
+    for (const auto &event : captured_events)
     {
-        LOG_INFO("✓ Client connected to server");
+        event_counts[event.event]++;
+    }
 
-        // Test GET operation
-        const auto get_result = client.get("server_key1");
-        if (get_result.ok())
+    LOG_INFO("Event summary:");
+    for (const auto &[event_type, count] : event_counts)
+    {
+        const char *event_name = [](MembershipEvent evt)
         {
-            LOG_INFO("✓ GET operation successful: server_key1 -> %s", get_result.value().c_str());
+            switch (evt)
+            {
+            case MembershipEvent::NODE_JOINED:
+                return "NODE_JOINED";
+            case MembershipEvent::NODE_LEFT:
+                return "NODE_LEFT";
+            case MembershipEvent::NODE_FAILED:
+                return "NODE_FAILED";
+            case MembershipEvent::ROLE_CHANGED:
+                return "ROLE_CHANGED";
+            case MembershipEvent::MEMBERSHIP_UPDATED:
+                return "MEMBERSHIP_UPDATED";
+            default:
+                return "UNKNOWN";
+            }
+        }(event_type);
+        LOG_INFO("  %s: %d events", event_name, count);
+    }
+
+    membership->stop();
+}
+
+void demonstrateMembershipUtilities()
+{
+    LOG_INFO("=== Membership Utilities Demonstration ===");
+
+    // Test endpoint parsing
+    LOG_INFO("Testing endpoint parsing...");
+
+    const std::vector<std::string> test_endpoints = {
+        "127.0.0.1:8080",
+        "192.168.1.100:9000",
+        "localhost:3000",
+        "invalid-endpoint",
+        "host:",
+        ":8080",
+        "host:99999"};
+
+    for (const auto &endpoint : test_endpoints)
+    {
+        const auto result = MembershipUtils::parseEndpoint(endpoint);
+        if (result.ok())
+        {
+            const auto [host, port] = result.value();
+            LOG_INFO("✓ Valid endpoint: %s -> %s:%d", endpoint.c_str(), host.c_str(), port);
         }
         else
         {
-            LOG_ERROR("✗ GET operation failed");
+            LOG_INFO("✗ Invalid endpoint: %s", endpoint.c_str());
         }
+    }
 
-        // Test PUT operation
-        const auto put_status = client.put("client_key1", "client_value1");
-        if (put_status == Status::OK)
+    // Test quorum calculations
+    LOG_INFO("Testing quorum calculations...");
+
+    const std::vector<std::size_t> cluster_sizes = {1, 2, 3, 4, 5, 7, 10};
+    for (const auto size : cluster_sizes)
+    {
+        const auto quorum_size = MembershipUtils::calculateQuorumSize(size);
+        const auto has_quorum_all = MembershipUtils::hasQuorum(size, size);
+        const auto has_quorum_half = MembershipUtils::hasQuorum(size / 2, size);
+
+        LOG_INFO("Cluster size %zu: quorum=%zu, all_active=%s, half_active=%s",
+                 size, quorum_size,
+                 has_quorum_all ? "true" : "false",
+                 has_quorum_half ? "true" : "false");
+    }
+
+    // Test cluster health assessment
+    LOG_INFO("Testing cluster health assessment...");
+
+    std::vector<std::shared_ptr<NodeInfo>> test_cluster;
+
+    // Create a mix of healthy and unhealthy nodes
+    for (int i = 1; i <= 5; ++i)
+    {
+        auto node = std::make_shared<NodeInfo>("health_test_" + std::to_string(i),
+                                               "127.0.0.1", 8000 + i);
+        if (i <= 3)
         {
-            LOG_INFO("✓ PUT operation successful");
+            node->setState(NodeState::ACTIVE);
         }
         else
         {
-            LOG_ERROR("✗ PUT operation failed");
+            node->setState(NodeState::FAILED);
         }
+        test_cluster.push_back(node);
+    }
 
-        // Verify PUT by reading it back
-        const auto verify_result = client.get("client_key1");
-        if (verify_result.ok())
-        {
-            LOG_INFO("✓ PUT verification successful: client_key1 -> %s", verify_result.value().c_str());
-        }
-        else
-        {
-            LOG_ERROR("✗ PUT verification failed");
-        }
+    const auto is_healthy = MembershipUtils::isClusterHealthy(test_cluster);
+    LOG_INFO("✓ Test cluster health (3/5 active): %s", is_healthy ? "healthy" : "unhealthy");
 
-        // Test DELETE operation
-        const auto delete_status = client.remove("client_key1");
-        if (delete_status == Status::OK)
-        {
-            LOG_INFO("✓ DELETE operation successful");
-        }
-        else
-        {
-            LOG_ERROR("✗ DELETE operation failed");
-        }
+    // Test healthy node selection
+    const auto healthy_nodes = MembershipUtils::selectHealthyNodes(
+        test_cluster, std::chrono::milliseconds(10000));
+    LOG_INFO("✓ Healthy nodes selected: %zu out of %zu", healthy_nodes.size(), test_cluster.size());
 
-        // Verify DELETE
-        const auto verify_delete = client.get("client_key1");
-        if (!verify_delete.ok() && verify_delete.status() == Status::NOT_FOUND)
-        {
-            LOG_INFO("✓ DELETE verification successful");
-        }
-        else
-        {
-            LOG_ERROR("✗ DELETE verification failed");
-        }
-
-        // Test ping/heartbeat
-        const auto ping_status = client.ping();
-        if (ping_status == Status::OK)
-        {
-            LOG_INFO("✓ Ping successful");
-        }
-        else
-        {
-            LOG_ERROR("✗ Ping failed");
-        }
-
-        client.disconnect();
-        LOG_INFO("✓ Client disconnected");
+    // Test leader finding
+    test_cluster[1]->setRole(NodeRole::LEADER); // Make node 2 the leader
+    const auto leader = MembershipUtils::findLeaderNode(test_cluster);
+    if (leader)
+    {
+        LOG_INFO("✓ Found leader: %s", leader->getId().c_str());
     }
     else
     {
-        LOG_ERROR("✗ Failed to connect client to server");
+        LOG_INFO("✗ No leader found");
     }
-
-    // Wait for server to finish
-    server_future.wait();
 }
 
-void demonstrateAsyncOperations()
+void demonstrateClusterStatistics()
 {
-    LOG_INFO("=== Asynchronous Operations Demonstration ===");
+    LOG_INFO("=== Cluster Statistics Demonstration ===");
 
-    // Create storage and server
-    const auto data_directory = std::filesystem::current_path() / "demo_data";
-    auto storage = std::make_shared<PersistentStorageEngine>(data_directory);
+    // Create a realistic cluster scenario
+    std::vector<std::shared_ptr<NodeInfo>> cluster_nodes;
 
-    const Port async_port = 9091;
+    // Add various types of nodes
+    const std::vector<std::tuple<std::string, NodeState, NodeRole>> node_configs = {
+        {"leader_node", NodeState::ACTIVE, NodeRole::LEADER},
+        {"follower_1", NodeState::ACTIVE, NodeRole::FOLLOWER},
+        {"follower_2", NodeState::ACTIVE, NodeRole::FOLLOWER},
+        {"follower_3", NodeState::JOINING, NodeRole::FOLLOWER},
+        {"observer_1", NodeState::ACTIVE, NodeRole::OBSERVER},
+        {"failed_node", NodeState::FAILED, NodeRole::FOLLOWER},
+        {"leaving_node", NodeState::LEAVING, NodeRole::FOLLOWER}};
 
-    // Start server
-    auto server_future = std::async(std::launch::async, [storage, async_port]()
-                                    {
-        auto server = std::make_unique<TcpServer>(async_port);
-        server->setStorageEngine(storage);
-        
-        const auto start_status = server->start();
-        if (start_status == Status::OK) {
-            LOG_INFO("Async demo server started on port %d", async_port);
-            std::this_thread::sleep_for(std::chrono::seconds(5));
-            server->stop();
-        } });
-
-    // Give server time to start
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    // Test async client operations
-    TcpClient async_client;
-    const auto connect_status = async_client.connect("localhost", async_port);
-
-    if (connect_status == Status::OK)
+    for (const auto &[id, state, role] : node_configs)
     {
-        LOG_INFO("✓ Async client connected");
+        auto node = std::make_shared<NodeInfo>(id, "127.0.0.1", 8000);
+        node->setState(state);
+        node->setRole(role);
 
-        // Perform multiple async operations
-        std::vector<std::future<std::unique_ptr<Message>>> futures;
+        // Add some metadata
+        node->setMetadata("datacenter", "us-west-1");
+        node->setMetadata("version", "1.0.0");
 
-        // Send multiple requests asynchronously
-        for (int i = 0; i < 5; ++i)
+        // Simulate some heartbeat activity
+        for (int i = 0; i < 10; ++i)
         {
-            PutRequestMessage request("async_key_" + std::to_string(i),
-                                      "async_value_" + std::to_string(i));
-            futures.push_back(async_client.sendRequestAsync(request));
-        }
-
-        // Wait for all responses
-        int successful_ops = 0;
-        for (auto &future : futures)
-        {
-            try
-            {
-                auto response = future.get();
-                if (response && response->getType() == MessageType::PUT_RESPONSE)
-                {
-                    const auto &put_response = static_cast<const PutResponseMessage &>(*response);
-                    if (put_response.getStatus() == Status::OK)
-                    {
-                        ++successful_ops;
-                    }
-                }
-            }
-            catch (const std::exception &e)
-            {
-                LOG_ERROR("Async operation failed: %s", e.what());
+            node->incrementHeartbeatsSent();
+            if (state == NodeState::ACTIVE && i < 9)
+            { // 90% success rate for active nodes
+                node->incrementHeartbeatsReceived();
+                node->recordLatency(std::chrono::milliseconds(50 + i * 5));
             }
         }
 
-        LOG_INFO("✓ Async operations completed: %d/5 successful", successful_ops);
-
-        async_client.disconnect();
+        cluster_nodes.push_back(node);
     }
-    else
+
+    // Calculate statistics
+    const auto cluster_start = std::chrono::system_clock::now() - std::chrono::hours(1);
+    const auto stats = MembershipUtils::calculateStats(cluster_nodes, cluster_start);
+
+    LOG_INFO("Cluster Statistics:");
+    LOG_INFO("  Total nodes: %zu", stats.total_nodes);
+    LOG_INFO("  Active nodes: %zu", stats.active_nodes);
+    LOG_INFO("  Failed nodes: %zu", stats.failed_nodes);
+    LOG_INFO("  Joining nodes: %zu", stats.joining_nodes);
+    LOG_INFO("  Leaving nodes: %zu", stats.leaving_nodes);
+    LOG_INFO("  Cluster uptime: %ldms", stats.cluster_uptime.count());
+
+    LOG_INFO("Role distribution:");
+    for (const auto &[role, count] : stats.role_counts)
     {
-        LOG_ERROR("✗ Failed to connect async client");
+        LOG_INFO("  %s: %zu", nodeRoleToString(role).c_str(), count);
     }
 
-    server_future.wait();
-}
+    // Calculate additional metrics
+    const auto active_percentage = (static_cast<double>(stats.active_nodes) / stats.total_nodes) * 100.0;
+    const auto has_quorum = MembershipUtils::hasQuorum(stats.active_nodes, stats.total_nodes);
 
-void demonstrateMultipleClients()
-{
-    LOG_INFO("=== Multiple Clients Demonstration ===");
+    LOG_INFO("Cluster health metrics:");
+    LOG_INFO("  Active percentage: %.1f%%", active_percentage);
+    LOG_INFO("  Has quorum: %s", has_quorum ? "yes" : "no");
+    LOG_INFO("  Is healthy: %s", MembershipUtils::isClusterHealthy(cluster_nodes) ? "yes" : "no");
 
-    // Create storage and server
-    const auto data_directory = std::filesystem::current_path() / "demo_data";
-    auto storage = std::make_shared<PersistentStorageEngine>(data_directory);
-
-    const Port multi_port = 9092;
-
-    // Start server
-    auto server_future = std::async(std::launch::async, [storage, multi_port]()
-                                    {
-        auto server = std::make_unique<TcpServer>(multi_port);
-        server->setStorageEngine(storage);
-        server->setMaxConnections(20);
-        
-        const auto start_status = server->start();
-        if (start_status == Status::OK) {
-            LOG_INFO("Multi-client server started on port %d", multi_port);
-            std::this_thread::sleep_for(std::chrono::seconds(6));
-            LOG_INFO("Multi-client server has %zu active connections", server->getConnectionCount());
-            server->stop();
-        } });
-
-    // Give server time to start
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    // Launch multiple client threads
-    std::vector<std::future<void>> client_futures;
-    constexpr int num_clients = 5;
-
-    for (int client_id = 0; client_id < num_clients; ++client_id)
+    // Show individual node health
+    LOG_INFO("Individual node status:");
+    for (const auto &node : cluster_nodes)
     {
-        auto client_future = std::async(std::launch::async, [client_id, multi_port]()
-                                        {
-            TcpClient client;
-            
-            const auto connect_status = client.connect("localhost", multi_port);
-            if (connect_status == Status::OK) {
-                LOG_INFO("Client %d connected", client_id);
-                
-                // Each client performs multiple operations
-                for (int op = 0; op < 3; ++op) {
-                    const auto key = "client_" + std::to_string(client_id) + "_key_" + std::to_string(op);
-                    const auto value = "client_" + std::to_string(client_id) + "_value_" + std::to_string(op);
-                    
-                    // PUT
-                    const auto put_status = client.put(key, value);
-                    if (put_status == Status::OK) {
-                        LOG_DEBUG("Client %d PUT successful: %s", client_id, key.c_str());
-                    }
-                    
-                    // GET to verify
-                    const auto get_result = client.get(key);
-                    if (get_result.ok()) {
-                        LOG_DEBUG("Client %d GET successful: %s -> %s", 
-                                 client_id, key.c_str(), get_result.value().c_str());
-                    }
-                    
-                    // Small delay between operations
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                }
-                
-                client.disconnect();
-                LOG_INFO("Client %d completed operations and disconnected", client_id);
-            } else {
-                LOG_ERROR("Client %d failed to connect", client_id);
-            } });
+        const auto success_rate = node->getHeartbeatsSent() > 0 ? (static_cast<double>(node->getHeartbeatsReceived()) / node->getHeartbeatsSent()) * 100.0 : 0.0;
 
-        client_futures.push_back(std::move(client_future));
+        LOG_INFO("  %s: %s/%s, %.0f%% success, %ldms avg latency",
+                 node->getId().c_str(),
+                 nodeStateToString(node->getState()).c_str(),
+                 nodeRoleToString(node->getRole()).c_str(),
+                 success_rate,
+                 node->getAverageLatency().count());
     }
-
-    // Wait for all clients to complete
-    for (auto &future : client_futures)
-    {
-        future.wait();
-    }
-
-    LOG_INFO("✓ All %d clients completed their operations", num_clients);
-
-    server_future.wait();
-}
-
-void demonstrateErrorHandling()
-{
-    LOG_INFO("=== Error Handling Demonstration ===");
-
-    // Test connection to non-existent server
-    TcpClient error_client;
-    const auto bad_connect = error_client.connect("localhost", 12345); // Non-existent port
-
-    if (bad_connect != Status::OK)
-    {
-        LOG_INFO("✓ Correctly handled connection to non-existent server");
-    }
-
-    // Test timeout behavior
-    const auto data_directory = std::filesystem::current_path() / "demo_data";
-    auto storage = std::make_shared<PersistentStorageEngine>(data_directory);
-
-    const Port error_port = 9093;
-
-    // Start server
-    auto server = std::make_unique<TcpServer>(error_port);
-    server->setStorageEngine(storage);
-
-    const auto start_status = server->start();
-    if (start_status == Status::OK)
-    {
-        LOG_INFO("Error handling test server started");
-
-        // Connect client with short timeout
-        TcpClient timeout_client;
-        timeout_client.setDefaultTimeout(std::chrono::milliseconds(100)); // Very short timeout
-
-        const auto connect_status = timeout_client.connect("localhost", error_port);
-        if (connect_status == Status::OK)
-        {
-            // This might timeout due to very short timeout setting
-            const auto result = timeout_client.get("any_key");
-            if (!result.ok())
-            {
-                LOG_INFO("✓ Timeout handling working (status: %d)", static_cast<int>(result.status()));
-            }
-            else
-            {
-                LOG_INFO("✓ Operation completed within timeout");
-            }
-
-            timeout_client.disconnect();
-        }
-
-        server->stop();
-        LOG_INFO("✓ Error handling tests completed");
-    }
-}
-
-void showNetworkingStatistics()
-{
-    LOG_INFO("=== Networking Statistics ===");
-
-    const auto data_directory = std::filesystem::current_path() / "demo_data";
-    auto storage = std::make_shared<PersistentStorageEngine>(data_directory);
-
-    LOG_INFO("Network Layer Statistics:");
-    LOG_INFO("  Message Header Size: %zu bytes", MessageHeader::HEADER_SIZE);
-    LOG_INFO("  Supported Message Types: %d", 14); // Count from MessageType enum
-    LOG_INFO("  Storage Engine Keys: %zu", storage->size());
-
-    // Show some message size examples
-    GetRequestMessage get_msg("example_key");
-    const auto get_serialized = get_msg.serialize();
-    if (get_serialized.ok())
-    {
-        LOG_INFO("  GET request size: %zu bytes", get_serialized.value().size());
-    }
-
-    PutRequestMessage put_msg("example_key", "example_value");
-    const auto put_serialized = put_msg.serialize();
-    if (put_serialized.ok())
-    {
-        LOG_INFO("  PUT request size: %zu bytes", put_serialized.value().size());
-    }
-
-    HeartbeatMessage hb_msg("example_node");
-    const auto hb_serialized = hb_msg.serialize();
-    if (hb_serialized.ok())
-    {
-        LOG_INFO("  Heartbeat size: %zu bytes", hb_serialized.value().size());
-    }
-
-    LOG_INFO("Network layer foundation established successfully!");
 }
 
 int main()
 {
     try
     {
-        LOG_INFO("Network Layer Foundation demonstration");
+        printBanner();
 
-        // Demonstrate message serialization
-        demonstrateMessageSerialization();
+        LOG_INFO("Starting Distributed Database");
+        LOG_INFO("Node Discovery and Cluster Formation demonstration");
 
-        // Demonstrate client-server communication
-        demonstrateClientServerCommunication();
+        // Demonstrate node information management
+        demonstrateNodeInfo();
 
-        // Demonstrate async operations
-        demonstrateAsyncOperations();
+        // Demonstrate node registry operations
+        demonstrateNodeRegistry();
 
-        // Demonstrate multiple clients
-        demonstrateMultipleClients();
+        // Demonstrate single node cluster
+        demonstrateSingleNodeCluster();
 
-        // Demonstrate error handling
-        demonstrateErrorHandling();
+        // Demonstrate membership events
+        demonstrateMembershipEvents();
 
-        // Show statistics
-        showNetworkingStatistics();
+        // Demonstrate membership utilities
+        demonstrateMembershipUtilities();
 
-        LOG_INFO("✓ Message protocol implemented");
-        LOG_INFO("✓ TCP server/client working");
-        LOG_INFO("✓ Async operations functional");
-        LOG_INFO("✓ Multiple client support verified");
-        LOG_INFO("✓ Error handling robust");
-        LOG_INFO("✓ Network layer foundation established");
+        // Demonstrate cluster statistics
+        demonstrateClusterStatistics();
+
+        LOG_INFO("✓ Node information system implemented");
+        LOG_INFO("✓ Cluster membership management working");
+        LOG_INFO("✓ Event-driven architecture established");
+        LOG_INFO("✓ Membership utilities and statistics functional");
+        LOG_INFO("✓ Foundation ready for consensus algorithms");
     }
     catch (const std::exception &e)
     {

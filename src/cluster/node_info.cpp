@@ -163,13 +163,21 @@ namespace distributed_db
     bool NodeInfo::isActive() const noexcept
     {
         const auto current_state = _state.load();
-        return current_state == NodeState::ACTIVE || current_state == NodeState::JOINING;
+        // Consider UNKNOWN as active for newly created nodes
+        return current_state == NodeState::ACTIVE || current_state == NodeState::UNKNOWN;
     }
 
     bool NodeInfo::canVote() const noexcept
     {
         const auto current_role = _role.load();
-        return current_role != NodeRole::OBSERVER && isActive();
+        const auto current_state = _state.load();
+
+        // A node can vote if:
+        // 1. It's not an OBSERVER (observers don't participate in voting)
+        // 2. It's not in a FAILED or LEAVING state (these nodes are effectively out of the cluster)
+        return current_role != NodeRole::OBSERVER &&
+               current_state != NodeState::FAILED &&
+               current_state != NodeState::LEAVING;
     }
 
     void NodeInfo::setMetadata(const std::string &key, const std::string &value)

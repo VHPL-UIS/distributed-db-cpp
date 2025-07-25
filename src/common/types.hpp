@@ -65,14 +65,14 @@ namespace distributed_db
         Status _status;
     };
 
-    struct NodeInfo
+    struct BasicNodeInfo
     {
         NodeId id;
         IPAddress ip;
         Port port;
         Timestamp last_heartbeat;
 
-        NodeInfo(NodeId id, IPAddress ip, Port port) : id(std::move(id)), ip(std::move(ip)), port(port), last_heartbeat(std::chrono::system_clock::now()) {}
+        BasicNodeInfo(NodeId id, IPAddress ip, Port port) : id(std::move(id)), ip(std::move(ip)), port(port), last_heartbeat(std::chrono::system_clock::now()) {}
     };
 } // namespace distributed_db
 

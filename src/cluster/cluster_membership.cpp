@@ -238,7 +238,13 @@ namespace distributed_db
         if (seed_nodes.empty())
         {
             LOG_INFO("No seed nodes provided, starting as single-node cluster");
+
+            // Update local node state
             _local_node->setState(NodeState::ACTIVE);
+
+            // IMPORTANT: Also update the node in the registry since they're separate objects
+            _node_registry->updateNode(*_local_node);
+
             notifyMembershipEvent(MembershipEventData(MembershipEvent::NODE_JOINED, _local_node->getId(), _local_node));
             return Status::OK;
         }
@@ -254,6 +260,8 @@ namespace distributed_db
         }
 
         _local_node->setState(NodeState::JOINING);
+        // Update registry as well
+        _node_registry->updateNode(*_local_node);
 
         // Try to connect to seed nodes
         bool joined = false;
@@ -275,10 +283,12 @@ namespace distributed_db
         {
             LOG_ERROR("Failed to join cluster - no seed nodes were reachable");
             _local_node->setState(NodeState::FAILED);
+            _node_registry->updateNode(*_local_node);
             return Status::NETWORK_ERROR;
         }
 
         _local_node->setState(NodeState::ACTIVE);
+        _node_registry->updateNode(*_local_node);
         notifyMembershipEvent(MembershipEventData(MembershipEvent::NODE_JOINED, _local_node->getId(), _local_node));
 
         LOG_INFO("Successfully joined cluster");
@@ -335,10 +345,14 @@ namespace distributed_db
             return Status::INVALID_REQUEST;
         }
 
-        _node_registry->addNode(node);
+        // Create a copy and set proper state
+        NodeInfo node_copy = node;
+        node_copy.setState(NodeState::ACTIVE); // Set to ACTIVE when adding to cluster
+
+        _node_registry->addNode(node_copy);
         notifyMembershipEvent(MembershipEventData(MembershipEvent::NODE_JOINED, node.getId()));
 
-        LOG_INFO("Added node to cluster: %s", node.toString().c_str());
+        LOG_INFO("Added node to cluster: %s", node_copy.toString().c_str());
         return Status::OK;
     }
 
@@ -743,11 +757,17 @@ namespace distributed_db
 
         try
         {
-            const auto port = static_cast<Port>(std::stoul(port_str));
-            if (port == 0 || port > 65535)
+            // Parse as unsigned long first to check full range
+            const auto port_ul = std::stoul(port_str);
+
+            // Check if port is in valid range (1-65535)
+            if (port_ul == 0 || port_ul > 65535)
             {
                 return Result<std::pair<std::string, Port>>(Status::INVALID_REQUEST);
             }
+
+            // Now safely cast to Port type
+            const auto port = static_cast<Port>(port_ul);
 
             return Result<std::pair<std::string, Port>>(std::make_pair(host, port));
         }

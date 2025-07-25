@@ -8,6 +8,8 @@ add_executable(distributed_db
     network/message.cpp
     network/tcp_server.cpp
     network/tcp_client.cpp
+    cluster/node_info.cpp
+    cluster/cluster_membership.cpp
 )
 
 # Link libraries
