@@ -39,4 +39,4 @@ jobs:
     - name: Run Unit Tests
       run: |
         cd build
-        ctest --verbose
+        ./bin/test_distributed_db --gtest_output=xml:test-results.xml --gtest_color=yes
