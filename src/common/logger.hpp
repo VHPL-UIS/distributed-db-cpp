@@ -7,6 +7,7 @@
 #include <chrono>
 #include <mutex>
 #include <iomanip>
+#include <memory>
 
 namespace distributed_db
 {
