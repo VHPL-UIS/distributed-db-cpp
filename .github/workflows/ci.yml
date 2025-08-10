@@ -1,0 +1,42 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libgtest-dev
+
+    - name: Build Google Test
+      run: |
+        cd /usr/src/gtest
+        sudo cmake CMakeLists.txt
+        sudo make
+        sudo cp *.a /usr/lib
+
+    - name: Configure CMake
+      run: cmake -S . -B build
+
+    - name: Build Project
+      run: cmake --build build -- -j$(nproc)
+
+    - name: Run Unit Tests
+      run: |
+        cd build
+        ctest --output-on-failure
