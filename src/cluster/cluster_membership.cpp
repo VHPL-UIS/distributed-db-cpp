@@ -131,7 +131,7 @@ namespace distributed_db
         if (offset + sizeof(std::uint32_t) > data.size())
             return Status::INVALID_REQUEST;
         std::uint32_t member_count;
-        std::memcpy(&member_count, data.data() + offset, sizeof(member_count));
+        memcpy(&member_count, data.data() + offset, sizeof(member_count));
         offset += sizeof(member_count);
 
         // Deserialize members
@@ -144,7 +144,7 @@ namespace distributed_db
             if (offset + sizeof(std::uint32_t) > data.size())
                 return Status::INVALID_REQUEST;
             std::uint32_t member_size;
-            std::memcpy(&member_size, data.data() + offset, sizeof(member_size));
+            memcpy(&member_size, data.data() + offset, sizeof(member_size));
             offset += sizeof(member_size);
 
             // Member data
