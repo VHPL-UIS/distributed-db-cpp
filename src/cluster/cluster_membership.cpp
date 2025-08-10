@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 #include <regex>
+#include <cstring>
 
 namespace distributed_db
 {
