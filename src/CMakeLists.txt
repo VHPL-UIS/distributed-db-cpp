@@ -10,6 +10,7 @@ add_executable(distributed_db
     network/tcp_client.cpp
     cluster/node_info.cpp
     cluster/cluster_membership.cpp
+    cluster/consistent_hash.cpp
 )
 
 # Link libraries
