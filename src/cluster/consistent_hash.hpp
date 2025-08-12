@@ -14,6 +14,25 @@ namespace distributed_db
     class ConsistentHashRing
     {
     public:
+        explicit ConsistentHashRing(std::size_t virtual_nodes = 100, std::size_t replication_factor = 3);
+
+        void setVirtualNodes(std::size_t count);
+        void setReplicationFactor(std::size_t factor);
+
+        void addNode(const NodeId &node_id);
+        void removeNode(const NodeId &node_it);
+
+        void clear();
+
+        [[nodiscard]] std::vector<NodeId> getNodesForKey(const Key &key) const;
+        [[nodiscard]] NodeId getPrimaryNodeForKey(const Key &key) const;
+
+        [[nodiscard]] std::size_t size() const;     // number of distinct physical nodes
+        [[nodiscard]] std::size_t ringSize() const; // number of virtual entries in ring
+
+        // debugging / introspection
+        [[nodiscard]] std::vector<NodeId> allNodes() const;
+
     private:
         std::map<std::uint64_t, NodeId> _ring;
         std::unordered_map<NodeId, std::vector<std::uint64_t>> _node_hashes;
