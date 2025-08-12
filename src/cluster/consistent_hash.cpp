@@ -2,6 +2,7 @@
 #include <functional>
 #include <sstream>
 #include <unordered_set>
+#include <mutex>
 
 namespace distributed_db
 {

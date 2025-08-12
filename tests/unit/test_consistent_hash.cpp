@@ -2,6 +2,7 @@
 #include "cluster/consistent_hash.hpp"
 #include <unordered_map>
 #include <random>
+#include <unordered_set>
 
 using namespace distributed_db;
 
