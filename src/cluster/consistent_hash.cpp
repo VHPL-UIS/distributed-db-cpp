@@ -1,6 +1,7 @@
 #include "consistent_hash.hpp"
 #include <functional>
 #include <sstream>
+#include <unordered_set>
 
 namespace distributed_db
 {
