@@ -11,6 +11,7 @@ add_executable(distributed_db
     cluster/node_info.cpp
     cluster/cluster_membership.cpp
     cluster/consistent_hash.cpp
+    cluster/key_router.cpp
 )
 
 # Link libraries
