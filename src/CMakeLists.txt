@@ -12,6 +12,7 @@ add_executable(distributed_db
     cluster/cluster_membership.cpp
     cluster/consistent_hash.cpp
     cluster/key_router.cpp
+    cluster/migration_planner.cpp
 )
 
 # Link libraries
