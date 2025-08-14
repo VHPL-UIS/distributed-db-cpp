@@ -9,6 +9,7 @@ add_executable(test_distributed_db
     unit/test_message.cpp
     unit/test_cluster_membership.cpp
     unit/test_consistent_hash.cpp
+    unit/test_key_router.cpp
     ../src/common/config.cpp
     ../src/storage/storage_engine.cpp
     ../src/storage/wal.cpp
@@ -19,6 +20,8 @@ add_executable(test_distributed_db
     ../src/cluster/node_info.cpp
     ../src/cluster/cluster_membership.cpp
     ../src/cluster/consistent_hash.cpp
+    ../src/cluster/key_router.cpp
+    ../src/cluster/migration_planner.cpp
 )
 
 target_link_libraries(test_distributed_db
